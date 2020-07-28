@@ -1,0 +1,21 @@
+.container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.dropArea {
+  height: 150px;
+  margin: 20px;
+  background-color: rgb(167, 214, 255);
+}
+
+.dropLabel {
+  font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+  color: white;
+  text-align: center;
+}
+
+h1 {
+  text-align: center;
+  font-family: 'Trebuchet MS';
+}
