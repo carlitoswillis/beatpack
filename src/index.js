@@ -17,7 +17,7 @@ emitter.on('video', () => {
   ffmpeg(namePath, name, imagePath);
 })
 emitter.on('done', () => {
-  process.exit();
+  // process.exit();
 })
 
 process.stdin.on('data', (input) => {

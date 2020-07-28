@@ -15,10 +15,12 @@ for (let element of [folder, img]) {
     }
     ipcRenderer.send('dragstart', path);
     info[element.id] = path;
-    try {
-      processFiles(info);
-    } catch (e) {
-      console.log(e)
+    if (info.folderDrop && info.imageDrop) {
+      try {
+        processFiles(info);
+      } catch (e) {
+        console.log(e)
+      }
     }
   });
   element.addEventListener('dragover', (e) => {

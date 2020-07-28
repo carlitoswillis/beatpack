@@ -25,5 +25,5 @@ app.on('ready', function(){
 })
 
 ipcMain.on('dragstart', (event, filePath) => {
-  console.log('starting soon');
+  // console.log('starting soon');
 })
