@@ -9,11 +9,7 @@ module.exports = (fp, name) => {
       console.log('archiver has been finalized and the output file descriptor has closed.');
       emitter.emit('video');
     });
-    process.stdout.write('copying the following files...\n')
-    for (x of files) {
-      process.stdout.write(x);
-      process.stdout.write('\n')
-    }
+    process.stdout.write(`zipping ${files.length} files...\n`)
     archive.on('error', function(err){
       throw err;
     });

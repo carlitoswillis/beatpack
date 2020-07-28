@@ -1,8 +1,8 @@
-const { Lame, emitter } = require('./imports');
+const { Lame, emitter, path } = require('./imports');
 
 module.exports = (np, name) => {
-  console.log(np)
-  console.log(name)
+  const pat = path.join(np, 'stems', `${name}.wav`);
+  console.log(typeof pat, pat);
   const encoder = new Lame({
     output: `${np}/${name}.mp3`,
     bitrate: 320
