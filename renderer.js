@@ -12,6 +12,22 @@ const flush = document.getElementById('flush');
 const start = document.getElementById('start');
 
 let info = { single: true };
+
+const checkboxes = document.getElementsByClassName('features');
+
+const checkboxSet = () => {
+  [...checkboxes].forEach((x) => {
+    x.addEventListener('click', (e) => {
+      info[e.target.id] = e.target.checked;
+    });
+    info[x.id] = x.checked;
+  })
+}
+
+checkboxSet();
+
+
+
 for (let element of [folder, img]) {
   let path;
   element.addEventListener('drop', (e) => {
@@ -49,22 +65,25 @@ toggle.addEventListener('click', (e) => {
   document.getElementById('quantityText').innerText = other;
 });
 
-
-flush.addEventListener('click', (e) => {
-  info = { info: info.single };
+const wipe = () => {
+  info = { single: info.single };
   for (let element of [folder, img]) {
     element.className = 'dropArea';
   }
-});
+}
+
+flush.addEventListener('click', wipe);
 
 start.addEventListener('click', (e) => {
-  if (info.folderDrop && info.imageDrop) {
+  if (info.folderDrop && ( info.mp4 && info.imageDrop || !info.mp4 )) {
     try {
-      processFiles(info);
+      processFiles({...info});
     } catch (e) {
       console.log(e);
     }
   }
+  wipe();
+  checkboxSet();
 });
 
 

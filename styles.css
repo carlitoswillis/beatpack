@@ -63,3 +63,19 @@ h3 {
 .go:hover {
   background-color: rgb(129, 176, 139);
 }
+
+.checkboxes {
+  display: grid;
+  margin: auto auto;
+  width: 100%;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.options {
+  display: grid;
+  margin: auto;
+}
+
+.checkboxLabel {
+  font-family: 'Trebuchet MS', sans-serif;
+}
