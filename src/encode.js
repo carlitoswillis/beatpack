@@ -1,6 +1,7 @@
 const { Lame, emitter, path } = require('./imports');
 
-module.exports = (np, name) => {
+module.exports = (np, name, singleMode) => {
+  console.log(np)
   const encoder = new Lame({
     output: `${np}/${name}.mp3`,
     bitrate: 320

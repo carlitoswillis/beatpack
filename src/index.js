@@ -3,21 +3,22 @@ const encodeMp3 = require('./encode');
 const zipFolder = require('./zipfolder');
 const ffmpeg = require('./ffmpeg');
 
-let namePath;
-let name;
-let imagePath;
+let folder, namePath, name, imagePath, single, projects, data;
 
 emitter.on('encode', () => {
-  encodeMp3(namePath, name);
+  encodeMp3(namePath, name, single);
 })
 emitter.on('zip', () => {
-  zipFolder(namePath, name);
+  zipFolder(namePath, name, single);
 })
 emitter.on('video', () => {
-  ffmpeg(namePath, name, imagePath);
+  ffmpeg(namePath, name, imagePath, single);
 })
 emitter.on('done', () => {
   // process.exit();
+  if (data && projects && projects.length) {
+    handleFolder(data, projects);
+  }
 })
 
 process.stdin.on('data', (input) => {
@@ -27,9 +28,34 @@ process.stdin.on('data', (input) => {
   emitter.emit('encode');
 });
 
-module.exports = (info) => {
+const handleSingle = (info) => {
   namePath = info.folderDrop.replace('\n', '').split(String.fromCharCode(92)).join('');
   name = namePath.split('/').pop();
   imagePath = info.imageDrop.replace('\n', '').split(String.fromCharCode(92)).join('');
   emitter.emit('encode');
+}
+
+const handleFolder = (data, projects) => {
+  data.folderDrop = projects.pop();
+  handleSingle(data);
+}
+
+module.exports = (info) => {
+  data = info;
+  if (info.single) {
+    console.log('single mode')
+    handleSingle(info);
+  } else {
+    console.log('bulk mode')
+    folder = info.folderDrop.replace('\n', '').split(String.fromCharCode(92)).join('');
+    fs.readdir(folder, (err, files) => {
+      projects = [];
+      for (var f of files) {
+        if (fs.statSync(`${folder}/${f}`).isDirectory()) {
+          projects.push(`${folder}/${f}`);
+        }
+      }
+      handleFolder(data, projects);
+    })
+  }
 }

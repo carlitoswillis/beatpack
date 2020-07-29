@@ -1,6 +1,6 @@
 const { fs, archiver, emitter } = require('./imports');
 
-module.exports = (fp, name) => {
+module.exports = (fp, name, singleMode) => {
   fs.readdir(`${fp}/stems`, (err, files) => {
     const output = fs.createWriteStream(`${fp}/../${name}.zip`);
     const archive = archiver('zip');

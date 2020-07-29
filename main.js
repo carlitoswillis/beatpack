@@ -3,6 +3,8 @@ const url = require('url');
 const path = require('path');
 
 const { app, BrowserWindow } = electron;
+require('electron-reload')(__dirname);
+
 const ipcMain = electron.ipcMain;
 
 let mainWindow;
@@ -25,5 +27,5 @@ app.on('ready', function(){
 })
 
 ipcMain.on('dragstart', (event, filePath) => {
-  // console.log('starting soon');
+  console.log('starting soon');
 })
