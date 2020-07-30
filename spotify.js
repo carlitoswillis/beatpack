@@ -54,6 +54,8 @@ searchArtist('trippie redd', (err, artist) => {
     }
     return count/g2.length;
   }
+
+  // work on these promises, nested promises are an issue... also, make sure it doesnt just do one artists simi over and over...
   simi(artist.id)
     .then(artists => {
       let similarArtists = [];

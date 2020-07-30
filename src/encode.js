@@ -1,5 +1,8 @@
 const { Lame, emitter, path } = require('./imports');
 
+// maybe use this
+// https://github.com/TooTallNate/node-lame/blob/master/examples/wav2mp3.js
+
 module.exports = (np, name, singleMode) => {
   console.log(np)
   const encoder = new Lame({
