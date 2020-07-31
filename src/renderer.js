@@ -47,7 +47,7 @@ for (let element of [folder, image]) {
   element.addEventListener('dragleave', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (check(e.target)) {
+    if (e.target.tagName === 'DIV') {
       e.target.className = 'dropArea';
     }
   });
