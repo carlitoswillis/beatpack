@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <link rel="stylesheet" href="styles.css">
+    <!-- <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"> -->
+    <title>BeatPack</title>
+  </head>
+  <body>
+    <div id='app'>
+
+      <h1>BeatPack</h1>
+      <h3 id="mode">Single Mode</h3>
+      <div class="container">
+        <div class="dropArea" id="folderPath">
+          <p class="dropLabel">Drop Folder Here</p>
+        </div>
+        <div class="dropArea" id="imagePath">
+          <p class="dropLabel">Drop .jpg Here</p>
+        </div>
+      </div>
+      <div class="checkboxes">
+        <div class="options">
+          <p class="checkboxLabel">mp3ify</p>
+          <input class="features" checked id="mp3" type="checkbox">
+        </div>
+        <div class="options">
+          <p class="checkboxLabel">zip</p>
+          <input class="features" checked id="zip" type="checkbox">
+        </div>
+        <div class="options">
+          <p class="checkboxLabel">mp4ify</p>
+          <input class="features" checked id="mp4" type="checkbox">
+        </div>
+      </div>
+      <div class="buttonHolder">
+        <div class="buttons go" id="start">
+          <p>
+            Start
+          </p>
+        </div>
+        <div class="buttons" id="quantity">
+          <p id="quantityText">
+            Bulk Mode
+          </p>
+        </div>
+        <div class="buttons" id="flush">
+          <p>
+            Reset Files
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+  <script src="../src/renderer.js"></script>
+</html>

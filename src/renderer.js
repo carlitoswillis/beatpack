@@ -1,19 +1,9 @@
 const { ipcRenderer } = require('electron');
-const processFiles = require('./src');
-
-const check = (el) => {
-  return el.tagName === 'DIV';
-}
-
-const folder = document.getElementById('folderDrop');
-const img = document.getElementById('imageDrop');
-const toggle = document.getElementById('quantity');
-const flush = document.getElementById('flush');
-const start = document.getElementById('start');
+const processFiles = require('../src/process');
+const { folder, image, quantityButton, resetButton,
+startButton, checkboxes } = require('../src/elements');
 
 let info = { single: true };
-
-const checkboxes = document.getElementsByClassName('features');
 
 const checkboxSet = () => {
   [...checkboxes].forEach((x) => {
@@ -24,11 +14,16 @@ const checkboxSet = () => {
   })
 }
 
+const wipe = () => {
+  info = { single: info.single };
+  for (let element of [folder, image]) {
+    element.className = 'dropArea';
+  }
+}
+
 checkboxSet();
 
-
-
-for (let element of [folder, img]) {
+for (let element of [folder, image]) {
   let path;
   element.addEventListener('drop', (e) => {
     e.preventDefault();
@@ -38,14 +33,14 @@ for (let element of [folder, img]) {
     }
     ipcRenderer.send('dragstart', path);
     info[element.id] = path;
-    if (check(e.target)) {
+    if (e.target.tagName === 'DIV') {
       e.target.className = 'dropArea grayArea';
     }
   });
   element.addEventListener('dragover', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (check(e.target)) {
+    if (e.target.tagName === 'DIV') {
       e.target.className = 'dropArea hoveredDrop'
     }
   });
@@ -58,32 +53,26 @@ for (let element of [folder, img]) {
   });
 }
 
-toggle.addEventListener('click', (e) => {
+quantityButton.addEventListener('click', (e) => {
   info.single = !info.single;
   let [ value, other ] = info.single ? ['Single Mode', 'Bulk Mode'] : ['Bulk Mode', 'Single Mode'];
   document.getElementById('mode').innerText = value;
   document.getElementById('quantityText').innerText = other;
 });
 
-const wipe = () => {
-  info = { single: info.single };
-  for (let element of [folder, img]) {
-    element.className = 'dropArea';
-  }
-}
+resetButton.addEventListener('click', wipe);
 
-flush.addEventListener('click', wipe);
-
-start.addEventListener('click', (e) => {
-  if (info.folderDrop && ( info.mp4 && info.imageDrop || !info.mp4 )) {
+startButton.addEventListener('click', (e) => {
+  if (info.folderPath && ( info.mp4 && info.imagePath || !info.mp4 )) {
     try {
       processFiles({...info});
     } catch (e) {
-      console.log(e);
+      console.error(e);
     }
   }
   wipe();
   checkboxSet();
 });
 
-
+// const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/test', imagePath: '/Users/carlitoswillis/Downloads/drake.jpg'};
+// processFiles(inf);

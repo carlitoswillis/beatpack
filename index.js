@@ -18,7 +18,7 @@ app.on('ready', function(){
   });
   // load html
   mainWindow.loadURL(url.format({
-    pathname: path.join(__dirname, 'mainWindow.html'),
+    pathname: path.join(__dirname, './public/index.html'),
     protocol: 'file:',
     slashes: true
   }))
@@ -27,5 +27,5 @@ app.on('ready', function(){
 })
 
 ipcMain.on('dragstart', (event, filePath) => {
-  console.log('starting soon');
+  // console.log('starting soon');
 })

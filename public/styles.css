@@ -57,11 +57,11 @@ h3 {
 }
 
 .go {
-  background-color: rgb(78, 150, 92);
+  background-color: rgb(78, 143, 150);
 }
 
 .go:hover {
-  background-color: rgb(129, 176, 139);
+  background-color: rgb(78, 160, 150);
 }
 
 .checkboxes {
