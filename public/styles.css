@@ -28,7 +28,7 @@
   text-align: center;
 }
 
-h1 {
+h1, h2 {
   text-align: center;
   font-family: 'Trebuchet MS';
 }
@@ -40,6 +40,7 @@ h3 {
 
 .buttonHolder {
   display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
   margin-top: 30px;
 }
 
@@ -67,8 +68,49 @@ h3 {
 .checkboxes {
   display: grid;
   margin: auto auto;
-  width: 100%;
+  width: 50%;
   grid-template-columns: 1fr 1fr 1fr;
+}
+
+.searchBox {
+  display: grid;
+}
+
+.spotify {
+  margin: 35px;
+}
+
+.search {
+  margin: auto;
+  width: 40%;
+  display: grid;
+  grid-template-columns: 5fr 2fr;
+}
+
+.results {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  width: 80%;
+  margin: 40px auto;
+  /* border: 2px solid rgb(169, 215, 255); */
+  border-radius: 4px;
+}
+
+.result {
+  display: grid;
+  margin: 20px auto;
+}
+
+.artistPic {
+  display: grid;
+  width: 65%;
+  margin: auto;
+}
+
+.artistName, .followers, .genres {
+  text-align: center;
+  font-family: arial;
+  margin: 0 auto;
 }
 
 .options {
@@ -78,4 +120,9 @@ h3 {
 
 .checkboxLabel {
   font-family: 'Trebuchet MS', sans-serif;
+}
+
+.searchedArtist {
+  width: 60%;
+  margin: 40px auto;
 }

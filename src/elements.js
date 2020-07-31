@@ -4,5 +4,9 @@ const quantityButton = document.getElementById('quantity');
 const resetButton = document.getElementById('flush');
 const startButton = document.getElementById('start');
 const checkboxes = document.getElementsByClassName('features');
+const searchBox = document.getElementById('searchBox');
+const searchButton = document.getElementById('searchButton');
+const results = document.getElementById('results');
+const searchedArtist = document.getElementById('searchedArtist');
 
-module.exports = { folder, image, quantityButton, resetButton, startButton, checkboxes }
+module.exports = { folder, image, quantityButton, resetButton, startButton, checkboxes, searchBox, searchButton, results, searchedArtist}

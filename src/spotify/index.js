@@ -1,4 +1,4 @@
-let search = 'drake';
+let search;
 
 process.stdin.on('data', (input) => {
   search = input;
@@ -24,16 +24,19 @@ const searchArtist = (input, callback) => {
         });
       } else {
         artist = JSON.parse(this.responseText).artists.items.reduce( (x, y) => x.popularity >= y.popularity ? x : y);
-        callback(null, artist);
+        // artist = JSON.parse(this.responseText).artists.items.filter(x => x.id === '51Y9uMxhciB1I5qIAhJs8q')[0];
+        artist.originalSearch = true;
+        callback(null, { id: artist.id, artist });
       }
     }
   });
-  xhr.open("GET", `https://api.spotify.com/v1/search?q=${input}&type=artist&limit=10`);
+  xhr.open("GET", `https://api.spotify.com/v1/search?q=${input}&type=artist`);
   xhr.setRequestHeader("Authorization", key.header);
   xhr.send();
 }
 
-const getRelatedArtists = (id, callback) => {
+const getRelatedArtists = (artistInfo, callback) => {
+  const { id, artist } = artistInfo;
   const xhr = new XMLHttpRequest();
   xhr.withCredentials = true;
   xhr.addEventListener("readystatechange", function() {
@@ -42,6 +45,7 @@ const getRelatedArtists = (id, callback) => {
       if (!similarArtists) {
         callback(null, []);
       } else {
+        similarArtists.push(artist);
         callback(null, similarArtists);
       }
     }
@@ -52,11 +56,13 @@ const getRelatedArtists = (id, callback) => {
 }
 
 
-const simi = util.promisify(getRelatedArtists);
+let simi = util.promisify(getRelatedArtists);
+// simi = memoize(simi);
 
-const start = () => {
-  searchArtist(search, (err, artist) => {
+const start = (searchTerm, callback) => {
+  searchArtist(searchTerm, (err, artistInfo) => {
     if (err) throw err;
+    const { id, artist } = artistInfo;
     console.log('artist: ', artist.name, '\nid: ', artist.id);
     const { genres } = artist;
     const testGenre = (g1, g2) => {
@@ -69,13 +75,12 @@ const start = () => {
       return count/g2.length;
     }
 
-    // work on these promises, nested promises are an issue... also, make sure it doesnt just do one artists simi over and over...
-    simi(artist.id)
+    simi(artistInfo)
       .then(artists => {
         let similarArtists = [];
         let original = [...artists];
-        for (artist of artists) {
-          similarArtists.push(simi(artist.id));
+        for (element of artists) {
+          similarArtists.push(simi({ id: element.id, artist: element }));
         }
         return Promise.all(similarArtists)
           .then(values => {
@@ -90,8 +95,8 @@ const start = () => {
       .then(artists => {
         let similarArtists = [];
         let original = [...artists];
-        for (artist of artists) {
-          similarArtists.push(simi(artist.id));
+        for (element of artists) {
+          similarArtists.push(simi({ id: element.id, artist: element }));
         }
         return Promise.all(similarArtists)
           .then(values => {
@@ -109,15 +114,11 @@ const start = () => {
           newthings.add(JSON.stringify(t));
         }
         newthings = Array.from(newthings).map(x => JSON.parse(x));
-        const newarry = newthings.filter( g => testGenre(genres, g.genres) >= .5);
-        newarry.sort((b, c) => b.followers.total <= c.followers.total ? 1 : -1)
-        newarry.forEach((x) => {
-          console.log(x.name);
-          // console.log('name: ', x.name);
-          // console.log('\nfans: ', x.followers.total);
-        })
-        console.log(newarry.length, 'similar (by genre) artists out of', newthings.length, 'found');
+        const newarry = newthings.filter( g => testGenre(genres, g.genres) >= 0);
+        newarry.sort((b, c) => b.followers.total >= c.followers.total ? 1 : -1)
+        callback(null, newarry)
       })
   });
 }
 
+module.exports = start;

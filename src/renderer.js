@@ -1,7 +1,9 @@
+const $ = require('jquery');
 const { ipcRenderer } = require('electron');
 const processFiles = require('../src/process');
-const { folder, image, quantityButton, resetButton,
-startButton, checkboxes } = require('../src/elements');
+const searchSpotify = require('../src/spotify');
+const { folder, image, quantityButton, resetButton, results,
+startButton, checkboxes, searchBox, searchButton, searchedArtist } = require('../src/elements');
 
 let info = { single: true };
 
@@ -74,5 +76,38 @@ startButton.addEventListener('click', (e) => {
   checkboxSet();
 });
 
-// const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/test', imagePath: '/Users/carlitoswillis/Downloads/drake.jpg'};
-// processFiles(inf);
+searchButton.addEventListener('click', (e) => {
+  results.innerHTML = '';
+  searchedArtist.innerHTML = '';
+  searchSpotify(searchBox.value, (err, artists) => {
+    if (err) throw err;
+    for (artist of artists) {
+      if (artist.originalSearch) {
+        const linktoartistimg = artist.images[1] ? artist.images[1].url : artist.images[0].url
+        $("#searchedArtist").append(`
+            <div id=${artist.id} class="searchedArtist">
+              <a href="${linktoartistimg}"><img class="artistPic" src="${linktoartistimg}" alt="${artist.name}"></a>
+              <div class="artistName"><a href="${artist.external_urls.spotify}" target="_blank">${artist.name}</a></div>
+              <p class="genres">genres: ${JSON.stringify(artist.genres)}</p>
+            </div>
+          `);
+      } else {
+        try {
+          $("#results").append(`
+            <div id=${artist.id} class="result">
+            <a href="${artist.images[0].url}"><img class="artistPic" src="${artist.images[0].url}" alt="${artist.name}"></a>
+              <div class="artistName"><a href="${artist.external_urls.spotify}" target="_blank">${artist.name}</a></div>
+              <p class="followers">followers: ${artist.followers.total}</p>
+              <p class="genres">genres: ${JSON.stringify(artist.genres)}</p>
+            </div>
+          `);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  });
+});
+
+const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/test (prod. barlitxs) 123 bpm Cb Major', imagePath: '/Users/carlitoswillis/Downloads/drake.jpg'};
+processFiles(inf);
