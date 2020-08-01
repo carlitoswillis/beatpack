@@ -109,5 +109,9 @@ searchButton.addEventListener('click', (e) => {
   });
 });
 
-const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/test (prod. barlitxs) 123 bpm Cb Major', imagePath: '/Users/carlitoswillis/Downloads/drake.jpg'};
+// const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/testinglongername (prod. barlitxs) 123 bpm Cb Major', imagePath: '/Users/carlitoswillis/Downloads/pics/drake.jpg'};
+
+const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/bulk', imagePath: '/Users/carlitoswillis/Downloads/pics'};
+inf.single = false;
+
 processFiles(inf);

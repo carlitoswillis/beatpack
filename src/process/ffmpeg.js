@@ -6,15 +6,18 @@ const makeCover = require('./makeCover');
 const command = new FfmpegCommand();
 
 module.exports = (info, callback) => {
-  const { folderPath, name, imagePath } = info;
-  let read = fs.createReadStream('/Users/carlitoswillis/Documents/graphic sources/blank.jpg');
+  const { folderPath, name, images, type } = info;
+  const imagePath = images.length ? images[Math.floor(Math.random() * images.length)] : info.imagePath;
+  const bw = Date.now() % 2 === 0 ? { color: 'black', str: '', textColor: 'white' } : { color: 'white', str: '2', textColor: 'black' };
+  const blank = '/Users/carlitoswillis/Documents/graphic sources/blank';
+  let read = fs.createReadStream(`${blank}${bw.str}.jpg`);
   let write = fs.createWriteStream(`${folderPath}/blank.jpg`);
   read.pipe(write);
   // read = fs.createReadStream(`${imagePath}`);
   // write = fs.createWriteStream(`${folderPath}/main.jpg`);
   // read.pipe(write);
 
-  makeCover( { name, output: `${folderPath}/main.jpg`, input: `${imagePath}` }, (err) => {
+  makeCover( { type, bw, name, output: `${folderPath}/main.jpg`, input: `${imagePath}` }, (err) => {
     if (err) throw err;
     child_process.exec(`docker run -v "${folderPath}":$(pwd) -w $(pwd)\
     jrottenberg/ffmpeg:3.2-scratch -stats \
