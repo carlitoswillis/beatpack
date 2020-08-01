@@ -5,7 +5,7 @@ const searchSpotify = require('../src/spotify');
 const { folder, image, quantityButton, resetButton, results, typebeatSearch,
 startButton, checkboxes, searchBox, searchButton, searchedArtist } = require('../src/elements');
 
-let info = { single: true, type: 'whats his name' };
+let info = { single: true, type: 'undefined' };
 
 const checkboxSet = () => {
   [...checkboxes].forEach((x) => {
@@ -117,9 +117,14 @@ searchButton.addEventListener('click', (e) => {
   });
 });
 
-const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/testinglongername (prod. barlitxs) 123 bpm Cb Major', imagePath: '/Users/carlitoswillis/Downloads/pics/drake.jpg'};
+const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/testinglongername (prod. barlitxs) 123 bpm Cb Major', imagePath: '/Users/carlitoswillis/Downloads/pics/samurai-jack.jpeg'};
 
-// const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/bulk', imagePath: '/Users/carlitoswillis/Downloads/pics'};
-// inf.single = false;
+function getRndInteger(min, max) {
+  return Math.floor(Math.random() * (max - min + 1) ) + min;
+}
+inf.type = Math.random().toString(36).substr(2, getRndInteger(4, 12))
+// inf.type = 'tvrf'
+// // const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/bulk', imagePath: '/Users/carlitoswillis/Downloads/pics'};
+// // inf.single = false;
 
 processFiles(inf);
