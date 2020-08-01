@@ -31,7 +31,7 @@ module.exports = (info, callback) => {
       callback(null, data);
       // child_process.exec(`docker run -v "${folderPath}":$(pwd) -w $(pwd)\
       // jrottenberg/ffmpeg:4.0 -stats \
-      // -i "${name}.mp4" -i thumb.png \
+      // -i "${name}.mp4" -i thumb.jpg \
       // -filter_complex "[1:v]scale=-1:-1 [ovrl], \
       // [0:v][ovrl]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2:enable='between(t,0,.1)" \
       // -pix_fmt yuv420p -c:a copy \

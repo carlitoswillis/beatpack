@@ -55,7 +55,7 @@ module.exports = (data, callback) => {
     .box('rgba(255,255,255, .9)') // for text "highlight / background"
     .drawText(0, size/4.6, typebeat)
     .colorize(red, green, blue)
-    .write(`${output}/thumb.png`, function(err){
+    .write(`${output}/thumb.jpg`, function(err){
       if (err) return console.dir(arguments)
       console.log('made thumbnail')
       callback(null);
