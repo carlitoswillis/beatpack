@@ -41,7 +41,6 @@ h3 {
 .buttonHolder {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  margin-top: 30px;
 }
 
 .buttons {
@@ -125,4 +124,17 @@ h3 {
 .searchedArtist {
   width: 60%;
   margin: 40px auto;
+}
+
+.typebeatdiv {
+  display: grid;
+  width: 33.3333%;
+  margin-top: auto;
+  margin-bottom: 0;
+}
+
+.typebeatSearch {
+  display: grid;
+  margin: 0 auto;
+  width: 190px;
 }

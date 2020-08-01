@@ -2,10 +2,10 @@ const $ = require('jquery');
 const { ipcRenderer } = require('electron');
 const processFiles = require('../src/process');
 const searchSpotify = require('../src/spotify');
-const { folder, image, quantityButton, resetButton, results,
+const { folder, image, quantityButton, resetButton, results, typebeatSearch,
 startButton, checkboxes, searchBox, searchButton, searchedArtist } = require('../src/elements');
 
-let info = { single: true };
+let info = { single: true, type: 'whats his name' };
 
 const checkboxSet = () => {
   [...checkboxes].forEach((x) => {
@@ -55,6 +55,13 @@ for (let element of [folder, image]) {
   });
 }
 
+const updateTypeBeat = () => {
+  info.type = typebeatSearch.value;
+  console.log(info);
+}
+
+typebeatSearch.addEventListener("change", updateTypeBeat);
+
 quantityButton.addEventListener('click', (e) => {
   info.single = !info.single;
   let [ value, other ] = info.single ? ['Single Mode', 'Bulk Mode'] : ['Bulk Mode', 'Single Mode'];
@@ -65,6 +72,7 @@ quantityButton.addEventListener('click', (e) => {
 resetButton.addEventListener('click', wipe);
 
 startButton.addEventListener('click', (e) => {
+  updateTypeBeat();
   if (info.folderPath && ( info.mp4 && info.imagePath || !info.mp4 )) {
     try {
       processFiles({...info});
@@ -109,9 +117,9 @@ searchButton.addEventListener('click', (e) => {
   });
 });
 
-// const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/testinglongername (prod. barlitxs) 123 bpm Cb Major', imagePath: '/Users/carlitoswillis/Downloads/pics/drake.jpg'};
+const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/testinglongername (prod. barlitxs) 123 bpm Cb Major', imagePath: '/Users/carlitoswillis/Downloads/pics/drake.jpg'};
 
-const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/bulk', imagePath: '/Users/carlitoswillis/Downloads/pics'};
-inf.single = false;
+// const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/bulk', imagePath: '/Users/carlitoswillis/Downloads/pics'};
+// inf.single = false;
 
 processFiles(inf);
