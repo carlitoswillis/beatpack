@@ -2,3 +2,5 @@ node_modules
 release-builds
 .DS_Store
 spotKey.js
+youtubeKey.js
+credentials.json

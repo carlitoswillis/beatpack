@@ -1,9 +1,11 @@
 const $ = require('jquery');
 const { ipcRenderer } = require('electron');
-const processFiles = require('../src/process');
-const searchSpotify = require('../src/spotify');
-const { folder, image, quantityButton, resetButton, results, typebeatSearch,
-startButton, checkboxes, searchBox, searchButton, searchedArtist } = require('../src/elements');
+const processFiles = require('./process');
+const searchSpotify = require('./spotify');
+const {
+  folder, image, quantityButton, resetButton, results, typebeatSearch,
+  startButton, checkboxes, searchBox, searchButton, searchedArtist,
+} = require('./elements');
 
 let info = { single: true, type: 'undefined' };
 
@@ -117,14 +119,17 @@ searchButton.addEventListener('click', (e) => {
   });
 });
 
-// const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/testinglongername (prod. barlitxs) 123 bpm Cb Major', imagePath: '/Users/carlitoswillis/Downloads/pics/samurai-jack.jpeg'};
+const info = { single: true, type: 'undefined', mp3: true, mp4: true, zip: true };
+const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/testinglongername (prod. barlitxs) 123 bpm Cb Major', imagePath: '/Users/carlitoswillis/Downloads/pics/samurai-jack.jpeg'};
 
-// function getRndInteger(min, max) {
-//   return Math.floor(Math.random() * (max - min + 1) ) + min;
-// }
-// inf.type = Math.random().toString(36).substr(2, getRndInteger(4, 12))
+function getRndInteger(min, max) {
+  return Math.floor(Math.random() * (max - min + 1) ) + min;
+}
+inf.type = Math.random().toString(36).substr(2, getRndInteger(4, 12));
 // inf.type = 'tvrf'
 // // const inf = {...info, folderPath: '/Users/carlitoswillis/Downloads/bulk', imagePath: '/Users/carlitoswillis/Downloads/pics'};
 // // inf.single = false;
 
-// processFiles(inf);
+processFiles(inf);
+
+console.log('yerr');

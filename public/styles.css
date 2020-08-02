@@ -102,7 +102,8 @@ h3 {
 
 .artistPic {
   display: grid;
-  width: 65%;
+  object-fit: contain;
+  width: 75%;
   margin: auto;
 }
 
@@ -110,6 +111,7 @@ h3 {
   text-align: center;
   font-family: arial;
   margin: 0 auto;
+  padding: 0;
 }
 
 .options {
@@ -126,6 +128,13 @@ h3 {
   margin: 40px auto;
 }
 
+.searchedArtistPic {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  margin: auto;
+}
+
 .typebeatdiv {
   display: grid;
   width: 33.3333%;
@@ -138,4 +147,10 @@ h3 {
   margin: 0 auto;
   width: 190px;
   text-align: center;
+}
+
+.ytbtn {
+  display: grid;
+  margin: 30px auto;
+  background-color: rgb(182, 0, 0);
 }
