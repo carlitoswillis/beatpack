@@ -22,7 +22,7 @@ app.on('ready', () => {
   //   protocol: 'file:',
   //   slashes: true
   // }))
-  mainWindow.loadURL('http://localhost:3000');
+  mainWindow.loadURL('http://localhost:5000/loggedin');
 
   mainWindow.openDevTools();
 });

@@ -68,7 +68,7 @@ h3 {
   display: grid;
   margin: auto auto;
   width: 50%;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
 }
 
 .searchBox {
@@ -153,4 +153,11 @@ h3 {
   display: grid;
   margin: 30px auto;
   background-color: rgb(182, 0, 0);
+}
+
+.videoData {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 40%;
+  margin: 30px auto;
 }

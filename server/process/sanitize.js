@@ -1,45 +1,52 @@
 /* eslint-disable no-param-reassign */
-const fs = require('fs');
+const {
+  fs, mp3, zip, mp4, upload,
+} = require('./sanitizeImports');
+
+const ops = {
+  mp3, zip, mp4, upload,
+};
 
 module.exports = (info) => {
   info.folderPath = info.folderPath.replace('\n', '').split(String.fromCharCode(92)).join('');
   info.imagePath = info.mp4 ? info.imagePath.replace('\n', '').split(String.fromCharCode(92)).join('') : '';
-  info.tasks = Object.keys(info).filter((x) => ['mp4', 'mp3', 'zip'].includes(x) && info[x]);
-  info.projects = [];
-  info.images = [];
+  info.tasks = Object.keys(info).filter((x) => ['mp4', 'mp3', 'zip', 'upload'].includes(x) && info[x]);
+  info.tasks = info.tasks.map((x) => [x, ops[x]]);
+  info.projects = [info.folderPath];
+  info.images = [info.imagePath];
+  info.tags = info.tags.split(',');
+  info.dates = new Array(7).fill(new Date())
+    .map((date) => {
+      date.setHours(9, 0, 0, 0);
+      date.setDate(date.getDate() + 1);
+      const time = date.toISOString();
+      return time;
+    });
 
-  if (info.single) {
-    info.name = info.folderPath.split('/').pop();
-  } else {
-    const files = fs.readdirSync(info.folderPath);
-    for (const f of files) {
-      const fname = `${info.folderPath}/${f}`;
+  if (!info.single) {
+    const folder = info.projects.pop();
+    fs.readdirSync(folder).forEach((file) => {
+      const fname = `${info.folderPath}/${file}`;
       if (fs.statSync(fname).isDirectory()) {
         info.projects.push(fname);
       }
-    }
-    info.folderPath = info.projects.pop();
-    info.name = info.folderPath.split('/').pop();
-
-    const images = fs.readdirSync(info.imagePath);
-    for (const image of images) {
+    });
+    fs.readdirSync(info.images.pop()).forEach((image) => {
       const imagePath = `${info.imagePath}/${image}`;
       if (image[0] !== '.' && !fs.statSync(imagePath).isDirectory()) {
         info.images.push(imagePath);
       }
-    }
+    });
+  }
 
-    info.imagePath = info.images[Math.floor(Math.random() * info.images.length)];
+  info.folderPath = info.projects.pop();
+  info.imagePath = info.images[Math.floor(Math.random() * info.images.length)];
+  info.name = info.folderPath.split('/').pop();
+  [info.beatName] = info.name.split(' (prod. barlitxs)');
+  info.title = `${info.title} ${info.beatName}`;
+  const titleArr = info.title.split('');
+  while (titleArr.length > 100) {
+    titleArr.pop();
+    info.title = titleArr.join('');
   }
 };
-// const files = info.folderPath;
-//     files.forEach((f) => {
-//       if (fs.statSync(f.path).isDirectory()) {
-//         info.projects.push(f.path);
-//         info.folders.push(f.path);
-//       }
-//     });
-//     const currentFile = info.folders.pop();
-//     info.projects.pop();
-//     info.folderPath = currentFile.path;
-//     info.name = currentFile.name;

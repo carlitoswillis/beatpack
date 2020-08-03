@@ -1,8 +1,8 @@
+/* eslint-disable no-console */
+/* eslint-disable no-param-reassign */
 const {
-  fs, sanitize, mp3, zip, mp4, util, asyncMap,
+  sanitize, asyncMap,
 } = require('./imports');
-
-const ops = { mp3, zip, mp4 };
 
 const handleSingle = (info, callback) => {
   console.log(`starting ${info.name}`);
@@ -26,8 +26,7 @@ const handleFolder = (info, callback) => {
 };
 
 module.exports = (info, callback) => {
-  const data = { ...info };
-  sanitize(data);
-  data.tasks = data.tasks.map((x) => [x, ops[x]]);
-  handleFolder(data, callback);
+  sanitize(info);
+  console.log(info);
+  handleFolder(info, callback);
 };

@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 /* eslint-disable no-nested-ternary */
 /* eslint-disable react/jsx-no-bind */
 /* eslint-disable jsx-a11y/no-static-element-interactions */
@@ -11,7 +12,7 @@ function getRndInteger(min, max) {
 }
 
 const defaultInfo = {
-  single: true, type: Math.random().toString(36).substr(2, getRndInteger(4, 12)), mp3: true, mp4: true, zip: true, folderPath: '/Users/carlitoswillis/Downloads/testinglongername (prod. barlitxs) 123 bpm Cb Major', imagePath: '/Users/carlitoswillis/Downloads/pics/samurai-jack.jpeg',
+  single: true, mp3: true, mp4: true, zip: true, upload: true, date: new Date(),
 };
 
 const DropArea = ({
@@ -114,8 +115,10 @@ const SearchArea = ({
 class App extends Component {
   constructor(props) {
     super(props);
-
-    const info = { ...defaultInfo };
+    const testinfo = {
+      single: true, type: Math.random().toString(36).substr(2, getRndInteger(4, 12)), mp3: true, mp4: true, zip: true, upload: true, folderPath: '/Users/carlitoswillis/Downloads/testinglongername (prod. barlitxs) 123 bpm Cb Major', imagePath: '/Users/carlitoswillis/Downloads/pics/samurai-jack.jpeg', date: new Date(), tags: 'tags, go, here', title: 'title goes here',
+    };
+    const info = { ...testinfo };
     // info.folderPath = '/Users/carlitoswillis/Downloads/bulk';
     // info.imagePath = '/Users/carlitoswillis/Downloads/pics';
     // info.single = false;
@@ -124,37 +127,33 @@ class App extends Component {
     this.state = { info, spotifyResults: [], youtubeResults: [] };
   }
 
-  componentDidMount() {
-    console.log('mounted');
-  }
-
   handleStart() {
     const { info } = this.state;
-    const settings = {
-      url: 'http://localhost:3000/start',
-      method: 'POST',
-      timeout: 0,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      data: JSON.stringify(info),
-    };
-
-    $.ajax(settings).done((response) => {
-      console.log(response);
-      const resetInfo = { ...info };
-      resetInfo.folderPath = undefined;
-      resetInfo.imagePath = undefined;
-      if (response === 'success') {
-        this.setState({
-          info: resetInfo,
-        });
-      }
-    });
+    const ready = info.folderPath && info.imagePath && info.type && info.tags && info.title;
+    if (ready) {
+      const settings = {
+        url: 'http://localhost:5000/start',
+        method: 'POST',
+        timeout: 0,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        data: JSON.stringify(info),
+      };
+      $.ajax(settings).done((response) => {
+        const resetInfo = { ...info };
+        resetInfo.folderPath = undefined;
+        resetInfo.imagePath = undefined;
+        if (response === 'success') {
+          this.setState({
+            info: resetInfo,
+          });
+        }
+      });
+    }
   }
 
   handleCheckbox(e) {
-    console.log(e);
     const { info } = this.state;
     const updatedInfo = { ...info };
     updatedInfo[e.target.id] = e.target.checked;
@@ -215,7 +214,7 @@ class App extends Component {
       this.setState(state);
     } else {
       const settings = {
-        url: `http://localhost:3000/${endpoint}?searchTerm=${searchTerm}`,
+        url: `http://localhost:5000/${endpoint}?searchTerm=${searchTerm}`,
         method: 'GET',
         timeout: 0,
       };
@@ -234,7 +233,7 @@ class App extends Component {
     const { info } = this.state;
     const updatedInfo = { ...info };
     updatedInfo.single = !updatedInfo.single;
-    this.setState({ info: updatedInfo });
+    this.setState({ info: updatedInfo }, () => { console.log(this.state.info); });
   }
 
   handleClear() {
@@ -247,8 +246,15 @@ class App extends Component {
   }
 
   handleLogin() {
-    this.setState({
-      loggedIn: true,
+    const settings = {
+      url: 'http://localhost:5000/chrome',
+      method: 'GET',
+      timeout: 0,
+    };
+    $.ajax(settings).done(() => {
+      this.setState({
+        loggedIn: true,
+      });
     });
   }
 
@@ -277,10 +283,10 @@ class App extends Component {
             <p className="checkboxLabel">mp4ify</p>
             <input onClick={(e) => this.handleCheckbox(e)} className="features" defaultChecked id="mp4" type="checkbox" />
           </div>
-          {/* <div className="options">
+          <div className="options">
             <p className="checkboxLabel">upload</p>
             <input onClick={(e) => this.handleCheckbox(e)} className="features" defaultChecked id="uploadToYT" type="checkbox" />
-          </div> */}
+          </div>
         </div>
         <div id="typebeatdiv" className="typebeatdiv">
           <input onChange={(e) => this.handleChange(e)} id="type" className="typebeatSearch" type="text" placeholder="type beat" />
@@ -301,6 +307,10 @@ class App extends Component {
               Reset Files
             </p>
           </div>
+        </div>
+        <div className="videoData">
+          <input maxLength="100" onChange={(e) => this.handleChange(e)} id="title" className="titleInput" type="text" placeholder="SEO Optimized Title" />
+          <textarea onChange={(e) => this.handleChange(e)} className="tagsTextArea" id="tags" name="tags" rows="4" cols="50" defaultValue="Paste Tags Here" />
         </div>
         {loggedIn
           ? <div />
