@@ -1,7 +1,8 @@
 const path = require('path');
 
 module.exports = {
-  mode: 'development',
+  target: 'electron-main',
+  mode: 'production',
   entry: './app/index.jsx',
   output: {
     filename: 'bundle.js',
@@ -15,12 +16,12 @@ module.exports = {
         use: {
           loader: 'babel-loader',
           options: {
-            presets: ['@babel/preset-env', '@babel/preset-react']
-          }
-        }
-      }
-    ]
+            presets: ['@babel/preset-env', '@babel/preset-react'],
+          },
+        },
+      },
+    ],
   },
-  resolve: { extensions: ['.js', '.jsx'] }
+  resolve: { extensions: ['.js', '.jsx'] },
 
-}
+};

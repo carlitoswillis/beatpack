@@ -14,7 +14,7 @@ const uploader = (info, callback) => {
   } = info;
   const date = dates.shift();
   const videoPath = `${folderPath}/${name}.mp4`;
-  const description = `${title} for download\nFree download: https://bsta.rs/\nPurchase: https://www.beatstars.com/barlitxs\nig: http://instagram.com/barlitxs\ntwitter: http://twitter.com/barlitxs\nsoundcloud: http://soundcloud.com/barlitxs\n${title}\nprod. barlitxs\n${tags}`;
+  const description = `${title} availavle for download\nFree download: https://bsta.rs/\nPurchase: https://www.beatstars.com/barlitxs\n\nig: http://instagram.com/barlitxs\ntwitter: http://twitter.com/barlitxs\nsoundcloud: http://soundcloud.com/barlitxs\n\n${title}\nprod. barlitxs\n\n\n\n${tags}`;
   const youtube = google.youtube({ version: 'v3', auth: oAuth2Client });
   youtube.videos.insert(
     {
