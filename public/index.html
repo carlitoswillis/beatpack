@@ -1,16 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <link rel="stylesheet" href="clear.css">
     <link rel="stylesheet" href="styles.css">
-    <!-- <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge"> -->
+    <link rel="stylesheet" href="electron-tabs.css">
+    <link rel="stylesheet" href="dragula.css">
     <title>BeatPack</title>
   </head>
   <body>
-    <div id='app'>
+    <div class="etabs-tabgroup">
+      <div class="etabs-tabs"></div>
+      <div class="etabs-buttons"></div>
     </div>
+    <div class="etabs-views"></div>
   </body>
-  <script src="bundle.js"></script>
-  <!-- <script src="/src/renderer.js"></script> -->
+  <script>
+    const TabGroup = require('electron-tabs');
+    const dragula = require("dragula");
+    const tabGroup = new TabGroup({
+      ready: function (tabGroup) {
+        dragula([tabGroup.tabContainer], {
+          direction: "horizontal"
+        });
+      }
+    });
+
+    const BeatPack = tabGroup.addTab({
+      title: 'BeatPack',
+      src: 'http://localhost:5000/beatpack.html',
+      visible: true,
+    });
+    BeatPack.activate()
+    const SpotifySearch = tabGroup.addTab({
+    title: "Spotify",
+    src: "http://localhost:5000/spotify.html",
+    visible: true
+    });
+    const YoutubeSearch = tabGroup.addTab({
+    title: "Youtube",
+    src: "http://localhost:5000/youtube.html",
+    visible: true
+    });
+
+  </script>
 </html>

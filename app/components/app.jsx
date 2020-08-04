@@ -3,7 +3,7 @@
 /* eslint-disable jsx-a11y/no-static-element-interactions */
 import React, { Component } from 'react';
 import DropArea from './droparea';
-import SearchArea from './searcharea';
+import BulkDropArea from './bulkdroparea';
 import CheckBoxes from './checkboxes';
 
 const $ = require('jquery');
@@ -13,11 +13,11 @@ class App extends Component {
     super(props);
     const { testInfo } = props;
     const defaultInfo = testInfo || {
-      single: true, mp3: true, mp4: true, zip: true, upload: true, date: new Date(),
+      single: true, mp3: true, mp4: true, zip: true, upload: true, imagePathFiles: [], folderPathFiles: [], date: new Date(),
     };
 
     const info = { ...defaultInfo };
-    this.state = { info, spotifyResults: [], youtubeResults: [] };
+    this.state = { info };
   }
 
   handleStart() {
@@ -59,6 +59,7 @@ class App extends Component {
     const { info } = this.state;
     const updatedInfo = { ...info };
     updatedInfo[e.target.id] = e.dataTransfer.files[0].path;
+    updatedInfo[`${e.target.id}Files`] = e.dataTransfer.files;
     this.setState({ info: updatedInfo });
   }
 
@@ -95,33 +96,6 @@ class App extends Component {
     this.setState({ info: updatedInfo });
   }
 
-  handleSubmit(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    const { info } = this.state;
-    const searchTerm = info[`${e.target.id.split('SearchButton')[0]}SearchBox`];
-    const endpoint = e.target.id.split('SearchButton')[0];
-    if (searchTerm === '') {
-      const state = { info };
-      state[`${endpoint}Results`] = [];
-      this.setState(state);
-    } else {
-      const settings = {
-        url: `http://localhost:5000/${endpoint}?searchTerm=${searchTerm}`,
-        method: 'GET',
-        timeout: 0,
-      };
-      $.ajax(settings).done((response) => {
-        const resetInfo = { ...info };
-        resetInfo.folderPath = undefined;
-        resetInfo.imagePath = undefined;
-        const state = { info: resetInfo };
-        state[`${endpoint}Results`] = response;
-        this.setState(state);
-      });
-    }
-  }
-
   handleChangeMode() {
     const { info } = this.state;
     const updatedInfo = { ...info };
@@ -134,7 +108,7 @@ class App extends Component {
     const updatedInfo = { ...info };
     updatedInfo.folderPath = undefined;
     updatedInfo.imagePath = undefined;
-    const state = { info: updatedInfo, spotifyResults: [], youtubeResults: [] };
+    const state = { info: updatedInfo };
     this.setState(state);
   }
 
@@ -153,16 +127,25 @@ class App extends Component {
 
   render() {
     const {
-      loaded, info, spotifyResults, youtubeResults, loggedIn,
+      info, loggedIn,
     } = this.state;
     return (
       <div>
         <h1>BeatPack</h1>
         <h3 id="mode">{info.single ? 'Single Mode' : 'Bulk Mode'}</h3>
-        <div className="container">
-          <DropArea path="folderPath" loaded={loaded} data={info.folderPath} handleDrop={this.handleDrop.bind(this)} handleDragOver={this.handleDragOver.bind(this)} handleDragEnter={this.handleDragEnter.bind(this)} handleDragLeave={this.handleDragLeave.bind(this)} />
-          <DropArea path="imagePath" loaded={loaded} data={info.imagePath} handleDrop={this.handleDrop.bind(this)} handleDragOver={this.handleDragOver.bind(this)} handleDragEnter={this.handleDragEnter.bind(this)} handleDragLeave={this.handleDragLeave.bind(this)} />
-        </div>
+        {info.single
+          ? (
+            <div className="container">
+              <DropArea path="folderPath" info={info} data={info.folderPath} handleDrop={this.handleDrop.bind(this)} handleDragOver={this.handleDragOver.bind(this)} handleDragEnter={this.handleDragEnter.bind(this)} handleDragLeave={this.handleDragLeave.bind(this)} />
+              <DropArea path="imagePath" info={info} data={info.imagePath} handleDrop={this.handleDrop.bind(this)} handleDragOver={this.handleDragOver.bind(this)} handleDragEnter={this.handleDragEnter.bind(this)} handleDragLeave={this.handleDragLeave.bind(this)} />
+            </div>
+          )
+          : (
+            <div className="container">
+              <BulkDropArea path="folderPath" files={Array.prototype.slice.call(info.folderPathFiles)} data={info.folderPath} info={info} handleDrop={this.handleDrop.bind(this)} handleDragOver={this.handleDragOver.bind(this)} handleDragEnter={this.handleDragEnter.bind(this)} handleDragLeave={this.handleDragLeave.bind(this)} />
+              <BulkDropArea path="imagePath" info={info} files={Array.prototype.slice.call(info.imagePathFiles)} data={info.imagePath} handleDrop={this.handleDrop.bind(this)} handleDragOver={this.handleDragOver.bind(this)} handleDragEnter={this.handleDragEnter.bind(this)} handleDragLeave={this.handleDragLeave.bind(this)} />
+            </div>
+          )}
         <CheckBoxes handleCheck={this.handleCheck.bind(this)} />
         <div id="typebeatdiv" className="typebeatdiv">
           <input onChange={(e) => this.handleChange(e)} id="type" className="typebeatSearch" type="text" placeholder="type beat" />
@@ -188,7 +171,7 @@ class App extends Component {
           <input maxLength="100" onChange={(e) => this.handleChange(e)} id="title" className="titleInput" type="text" placeholder="SEO Optimized Title" />
           <textarea onChange={(e) => this.handleChange(e)} className="tagsTextArea" id="tags" name="tags" rows="4" cols="50" defaultValue="Paste Tags Here" />
         </div>
-        {loggedIn
+        {/* {loggedIn
           ? <div />
           : (
             <div onClick={() => { this.handleLogin(); }} onKeyDown={() => { this.handleLogin(); }} className="buttons ytbtn" id="youtubeLogin">
@@ -196,9 +179,7 @@ class App extends Component {
                 YouTube Login
               </p>
             </div>
-          )}
-        <SearchArea platform="Spotify" results={spotifyResults} handleSubmit={this.handleSubmit.bind(this)} handleChange={this.handleChange.bind(this)} />
-        <SearchArea platform="Youtube" results={youtubeResults} handleSubmit={this.handleSubmit.bind(this)} handleChange={this.handleChange.bind(this)} />
+          )} */}
       </div>
     );
   }

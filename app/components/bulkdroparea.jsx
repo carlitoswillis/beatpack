@@ -1,8 +1,10 @@
 /* eslint-disable react/prop-types */
 import React from 'react';
 
-const DropArea = ({
-  path, data, info, handleDrop, handleDragOver, handleDragEnter, handleDragLeave,
+// const fs = require('fs');
+
+const BulkDropArea = ({
+  path, data, handleDrop, handleDragOver, handleDragEnter, handleDragLeave, info,
 }) => (
   <div>
     {data
@@ -21,6 +23,17 @@ const DropArea = ({
           <p className="dropLabel">
             loaded
           </p>
+          {/*
+          <div className="bulkFiles">
+            {Array.from(fs.readdirSync(data))
+              .filter((name) => name[0] !== '.')
+              .map((file) => (
+                <p key={file} className="dropLabel">
+                  {file}
+                </p>
+              ))}
+          </div>
+              */}
         </div>
       )
       : (
@@ -38,4 +51,4 @@ const DropArea = ({
   </div>
 );
 
-export default DropArea;
+export default BulkDropArea;

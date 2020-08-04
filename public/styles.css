@@ -1,12 +1,14 @@
 .container {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  width: 50%;
+  margin: auto;
 }
 
 .dropArea {
   height: 150px;
   margin: auto;
-  width: 85%;
+  width: 95%;
   background-color: rgb(169, 215, 255);
 }
 
@@ -28,26 +30,47 @@
   text-align: center;
 }
 
-h1, h2 {
+h1 {
+  text-align: left;
+  font-size: 3em;
+  font-family: 'Trebuchet MS';
+  /* margin: 5px 5px; */
+  color: white;
+  background-color:  rgb(169, 215, 255);
+  padding: 5px;
+}
+
+h2 {
   text-align: center;
   font-family: 'Trebuchet MS';
 }
 
 h3 {
-  text-align: center;
+  text-align: left;
   font-family: 'Gill Sans MT';
+  /* margin: 5px 8px; */
+  /* background-color:  rgb(169, 215, 255); */
+  padding: 5px;
+
 }
 
 .buttonHolder {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
+  margin: auto auto;
+  width: 100%;
+  height: 50px;
+  line-height: 50px;
+
 }
 
 .buttons {
+  display: inline-block;
   background-color: rgb(109, 132, 152);
-  text-align: center;
-  margin: 5px auto;
   width: 200px;
+  text-align: center;
+  vertical-align: middle;
+  margin: 5px auto;
   color: white;
   border-radius: 5px;
 }
@@ -66,9 +89,27 @@ h3 {
 
 .checkboxes {
   display: grid;
-  margin: auto auto;
   width: 50%;
+  margin: auto auto;
   grid-template-columns: 1fr 1fr 1fr 1fr;
+}
+
+.features {
+  width: 90px;
+  height: 90px;
+  margin: 0 auto;
+}
+
+.options {
+  display: grid;
+  margin: 30px 0;
+}
+
+.checkboxLabel {
+  font-family: 'Trebuchet MS', sans-serif;
+  /* display: none; */
+  text-align: center;
+  margin: 7px auto;
 }
 
 .searchBox {
@@ -112,15 +153,6 @@ h3 {
   font-family: arial;
   margin: 0 auto;
   padding: 0;
-}
-
-.options {
-  display: grid;
-  margin: auto;
-}
-
-.checkboxLabel {
-  font-family: 'Trebuchet MS', sans-serif;
 }
 
 .searchedArtist {

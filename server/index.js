@@ -20,23 +20,19 @@ module.exports = () => {
       });
     }
   });
-  if (tokens.expiry_date < Date.now()) {
-    cp.exec('open -a "Google Chrome" http://localhost:5000', (err) => {
+  if (tokens.expiry_date > Date.now()) {
+    cp.exec('open -a "Google Chrome" http://localhost:5000/login', (err) => {
       if (err) console.error(err);
     });
   } else {
     console.log('youtube tokens good');
   }
   const app = express();
-  app.set('view engine', 'ejs');
   app.use(express.json());
-  app.use('/loggedin', express.static('public'));
+  app.set('view engine', 'ejs');
 
-  app.get('/yttoken', (req, res) => {
-    res.json();
-  });
-  app.get('/', youtube.login);
-  app.get('/logout', youtube.logout);
+  app.use('/', express.static('public'));
+
   app.get('/oath2callback', (req, res) => {
     youtube.callbackHandler(req, res, () => {
       youtube.authed = true;
@@ -60,8 +56,10 @@ module.exports = () => {
     });
   });
 
+  app.get('/login', youtube.login);
+  app.get('/logout', youtube.logout);
   app.get('/chrome', (req, res) => {
-    cp.exec('open -a "Google Chrome" http://localhost:5000', (err) => {
+    cp.exec('open -a "Google Chrome" http://localhost:5000/login', (err) => {
       if (err) console.error(err);
       res.end('success');
     });

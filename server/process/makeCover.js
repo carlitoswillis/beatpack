@@ -12,7 +12,7 @@ function getRndInteger(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-module.exports = (data, callback) => {
+const makeCover = (data, callback) => {
   const {
     name, input, output, type, bw,
   } = data;
@@ -22,7 +22,8 @@ module.exports = (data, callback) => {
   const key = bpmAndKey[1];
   // const typebeat = `‎‎${type} type beat`;
   const typebeat = `${type} type beat`;
-  const size = (2.2639 * 1920) / (typebeat.length + 3);
+  const measure = (str) => (2.2639 * 1080) / (str.length + 4);
+  const size = measure(typebeat);
   const [red, green, blue] = [randomcolor(), randomcolor(), randomcolor()];
   const colorsnumber = getRndInteger(3, 20);
   console.log(colorsnumber);
@@ -50,21 +51,45 @@ module.exports = (data, callback) => {
       if (err) return console.dir(arguments);
       console.log('modified image');
       return gm(`${input}`)
-        .resize(null, 1080 - size * 1.2)
-        .gravity('South')
-        .colors(colorsnumber)
-        .extent(1920, 1080)
         .gravity('North')
-        .fontSize(size)
-        .fill('black')
-        // .box('rgba(255,255,255, .9)') // for text "highlight / background"
-        .stroke('black', 5)
-        .drawText(0, size * 0.9, typebeat)
+        .resize(null, 1080)
+        .crop(840, 1080, 0, 0)
+        .gravity('Center')
+        .colors(colorsnumber)
         .colorize(red, green, blue)
-        .write(`${output}/thumb.jpg`, function (err) {
+        .noise('laplacian')
+        .write(`${output}/cropped.jpg`, function (err) {
           if (err) return console.dir(arguments);
-          console.log('made thumbnail');
-          return callback(null);
+          console.log('modified image');
+          return gm('/Users/carlitoswillis/Documents/graphic sources/blank2.jpg')
+            .crop(1080, 1080)
+            .colors(colorsnumber)
+            .fill('white')
+            .drawRectangle(0, 0, 1080, 1080)
+            .fill('black')
+            .stroke('black', 9)
+            .gravity('North')
+            .fontSize(407)
+            .drawText(0, 366, 'FREE')
+            .fontSize(180)
+            .drawText(0, 529, 'DOWNLOAD')
+            .gravity('South')
+            .fontSize(measure(type))
+            .drawText(0, measure('Type Beat') * 1.45, type)
+            .fontSize(measure('Type Beat'))
+            .drawText(0, 67, 'Type Beat')
+            .write(`${output}/text.jpg`, function (err) {
+              if (err) return console.dir(arguments);
+              gm(`${output}/text.jpg`)
+                .append(`${output}/cropped.jpg`, true)
+                .write(`${output}/thumb.jpg`, function (err) {
+                  if (err) return console.dir(arguments);
+                  console.log('made thumbnail');
+                  return callback(null);
+                });
+            });
         });
     });
 };
+
+module.exports = makeCover;

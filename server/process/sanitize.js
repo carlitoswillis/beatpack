@@ -49,4 +49,5 @@ module.exports = (info) => {
     titleArr.pop();
     info.title = titleArr.join('');
   }
+  return info;
 };
