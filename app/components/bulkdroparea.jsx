@@ -18,7 +18,7 @@ const BulkDropArea = ({
           onDragLeave={(e) => handleDragLeave(e)}
         >
           <p className="dropLabel">
-            {info[`${path}Files`][0].name}
+            {info[`${path}Files`][0] ? info[`${path}Files`][0].name : data}
           </p>
           <p className="dropLabel">
             loaded

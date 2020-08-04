@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 /* eslint-disable react/prop-types */
 /* eslint-disable react/jsx-no-bind */
 /* eslint-disable jsx-a11y/no-static-element-interactions */
@@ -13,11 +14,16 @@ class App extends Component {
     super(props);
     const { testInfo } = props;
     const defaultInfo = testInfo || {
+      // eslint-disable-next-line max-len
       single: true, mp3: true, mp4: true, zip: true, upload: true, imagePathFiles: [], folderPathFiles: [], date: new Date(),
     };
 
     const info = { ...defaultInfo };
     this.state = { info };
+  }
+
+  componentDidMount() {
+    this.handleStart();
   }
 
   handleStart() {
@@ -127,6 +133,7 @@ class App extends Component {
 
   render() {
     const {
+      // eslint-disable-next-line no-unused-vars
       info, loggedIn,
     } = this.state;
     return (
@@ -172,6 +179,7 @@ class App extends Component {
         {/* {loggedIn
           ? <div />
           : (
+            // eslint-disable-next-line max-len
             <div onClick={() => { this.handleLogin(); }} onKeyDown={() => { this.handleLogin(); }} className="buttons ytbtn" id="youtubeLogin">
               <p>
                 YouTube Login
