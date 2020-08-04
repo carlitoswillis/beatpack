@@ -147,9 +147,6 @@ class App extends Component {
             </div>
           )}
         <CheckBoxes handleCheck={this.handleCheck.bind(this)} />
-        <div id="typebeatdiv" className="typebeatdiv">
-          <input onChange={(e) => this.handleChange(e)} id="type" className="typebeatSearch" type="text" placeholder="type beat" />
-        </div>
         <div className="buttonHolder">
           <div onClick={() => { this.handleStart(); }} onKeyDown={() => { this.handleStart(); }} className="buttons go" id="start">
             <p>
@@ -168,6 +165,7 @@ class App extends Component {
           </div>
         </div>
         <div className="videoData">
+          <input onChange={(e) => this.handleChange(e)} id="type" className="titleInput" type="text" placeholder="type beat" />
           <input maxLength="100" onChange={(e) => this.handleChange(e)} id="title" className="titleInput" type="text" placeholder="SEO Optimized Title" />
           <textarea onChange={(e) => this.handleChange(e)} className="tagsTextArea" id="tags" name="tags" rows="4" cols="50" defaultValue="Paste Tags Here" />
         </div>
