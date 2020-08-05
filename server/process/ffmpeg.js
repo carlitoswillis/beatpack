@@ -16,6 +16,12 @@ module.exports = (info, callback) => {
   const read = fs.createReadStream('/Users/carlitoswillis/Documents/brand graphics/whitebarlogoFS.png');
   const write = fs.createWriteStream(`${folderPath}/barlogo.png`);
   read.pipe(write);
+  const mp3Path = `/Users/carlitoswillis/Google Drive (carlitoswillis@berkeley.edu)/Track Outs/processed/${name}.mp3`;
+  // const bw = Date.now() % 2 === 0
+  //   ? { color: 'black', str: '', textColor: 'white' }
+  //   : { color: 'white', str: '2', textColor: 'black' };
+  // const blank = '/Users/carlitoswillis/Documents/graphic sources/blank';
+  // info.blank = `${blank}${bw.str}.jpg`;
 
   makeCover({
     type, name, output: `${folderPath}`, input: `${imagePath}`,
@@ -31,7 +37,11 @@ module.exports = (info, callback) => {
       if (err) throw err;
       fs.unlink(`${folderPath}/fullscreen.jpg`, () => {
         fs.unlink(`${folderPath}/barlogo.png`, () => {
-          callback(null);
+          fs.rename(`${info.folderPath}/${name}.mp3`, mp3Path, (err) => {
+            if (err) throw err;
+            console.log('Moved mp3');
+            callback(null);
+          });
         });
       });
       // child_process.exec(`docker run -v "${folderPath}":$(pwd) -w $(pwd)\

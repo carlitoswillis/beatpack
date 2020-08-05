@@ -5,6 +5,7 @@
 // gm - Copyright Aaron Heckmann <aaron.heckmann+github@gmail.com> (MIT Licensed)
 const gm = require('gm');
 const fs = require('fs');
+const sizeOf = require('image-size');
 
 function randomcolor() {
   return Math.floor(Math.random() * (10));
@@ -45,12 +46,14 @@ const makeCover = (data, callback) => {
   const [red, green, blue] = [randomcolor(), randomcolor(), randomcolor()];
   const colorsnumber = getRndInteger(3, 20);
   const colorsArr = colors();
+  const dimensions = sizeOf(`${input}`);
   gm(`${input}`)
     .resize(null, 1080)
     .crop(1920, 1080, 0, 0)
     .fontSize(36)
     .fill('black')
     .gravity('NorthEast')
+    .noise('poisson')
     .drawText(60, 270, `${namestuff[0]}`)
     .fontSize(24)
     .drawText(60, 310, `${bpm} bpm`)
@@ -66,7 +69,6 @@ const makeCover = (data, callback) => {
     .colors(colorsnumber)
     .gravity('South')
     .colorize(red, green, blue)
-    .noise('poisson')
     .write(`${output}/main.jpg`, function (err) {
       if (err) return console.dir(arguments);
       console.log('cropped and wrote on image');
@@ -110,6 +112,7 @@ const makeCover = (data, callback) => {
                   if (err) return console.dir(arguments);
                   console.log('finished thumbnail');
                   gm(`${output}/main.jpg`)
+                    .gravity('North')
                     .resize(null, 1080)
                     .crop(1920, 1080)
                     .background('black')
@@ -117,13 +120,47 @@ const makeCover = (data, callback) => {
                     .write(`${output}/fullscreen.jpg`, function (err) {
                       if (err) return console.dir(arguments);
                       console.log('finished fullscreen image for video');
-                      fs.unlink(`${output}/text.jpg`, () => {
-                        fs.unlink(`${output}/main.jpg`, () => {
-                          fs.unlink(`${output}/cropped.jpg`, () => {
-                            return callback(null);
-                          });
+                      // gm.source = `${output}/fullscreen.jpg`;
+                      gm(`${input}`)
+                        .gravity('North')
+                        .resize(dimensions.width <= dimensions.height ? 1000 : null, dimensions.height <= dimensions.width ? 1000 : null)
+                        .crop(1000, 1000, 0, 0)
+                        .colors(colorsnumber)
+                        .noise('poisson')
+                        .fontSize(36)
+                        .fill('black')
+                        .gravity('NorthEast')
+                        .drawText(60, 270, `${namestuff[0]}`)
+                        .fontSize(24)
+                        .drawText(60, 310, `${bpm} bpm`)
+                        .drawText(60, 340, `${key}`)
+                        .drawText(60, 370, 'prod. barlitxs')
+                        .fill('white')
+                        .fontSize(36)
+                        .drawText(60, 100, `${namestuff[0]}`)
+                        .fontSize(24)
+                        .drawText(60, 140, `${bpm} bpm`)
+                        .drawText(60, 170, `${key}`)
+                        .drawText(60, 200, 'prod. barlitxs')
+                        .gravity('South')
+                        .colorize(red, green, blue)
+                        .write(`${output}/cropped2.jpg`, function (err) {
+                          if (err) return console.dir(arguments);
+                          console.log('Cropped for cover art');
+                          gm(`${output}/cropped2.jpg`)
+                            .composite('/Users/carlitoswillis/Documents/brand graphics/cmd logo/barlogocover.png')
+                            .write(`/Users/carlitoswillis/Google Drive (carlitoswillis@berkeley.edu)/Track Outs/processed/${name} cover.jpg`, (err) => {
+                              if (err) throw err;
+                              console.log('Made cover art');
+                              fs.unlink(`${output}/text.jpg`, () => {
+                                fs.unlink(`${output}/main.jpg`, () => {
+                                  fs.unlink(`${output}/cropped.jpg`, () => {
+                                    fs.unlink(`${output}/cropped2.jpg`, () => callback(null));
+                                  });
+                                });
+                              });
+                            });
                         });
-                      });
                     });
                 });
             });

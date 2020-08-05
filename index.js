@@ -1,9 +1,9 @@
 const electron = require('electron');
 const path = require('path');
 const url = require('url');
-// const server = require('./server');
+const server = require('./server');
 
-// server();
+server();
 
 const { app, BrowserWindow } = electron;
 require('electron-reload')(__dirname);
@@ -22,5 +22,5 @@ app.on('ready', () => {
   //   protocol: 'file:',
   //   slashes: true,
   // }));
-  mainWindow.loadURL('http://localhost:5000/beatpack.html');
+  mainWindow.loadURL('http://localhost:5000');
 });

@@ -15,15 +15,11 @@ class App extends Component {
     const { testInfo } = props;
     const defaultInfo = testInfo || {
       // eslint-disable-next-line max-len
-      single: true, mp3: true, mp4: true, zip: true, upload: true, imagePathFiles: [], folderPathFiles: [], date: new Date(),
+      single: true, mp3: true, mp4: true, zip: true, upload: true, imagePathFiles: [], folderPathFiles: [], date: new Date(), startDate: '2020-10-31', startTime: '9:29',
     };
 
     const info = { ...defaultInfo };
     this.state = { info };
-  }
-
-  componentDidMount() {
-    this.handleStart();
   }
 
   handleStart() {
@@ -172,6 +168,20 @@ class App extends Component {
           </div>
         </div>
         <div className="videoData">
+          <input
+            onChange={(e) => this.handleChange(e)}
+            type="date"
+            id="startDate"
+            name="startDate"
+          />
+          <input
+            onChange={(e) => this.handleChange(e)}
+            type="time"
+            id="startTime"
+            name="startTime"
+            min="09:00"
+            max="20:00"
+          />
           <input onChange={(e) => this.handleChange(e)} id="type" className="titleInput" type="text" placeholder="type beat" />
           <input maxLength="100" onChange={(e) => this.handleChange(e)} id="title" className="titleInput" type="text" placeholder="SEO Optimized Title" />
           <textarea onChange={(e) => this.handleChange(e)} className="tagsTextArea" id="tags" name="tags" rows="4" cols="50" defaultValue="Paste Tags Here" />

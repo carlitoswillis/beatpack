@@ -27,6 +27,5 @@ const handleFolder = (info, callback) => {
 
 module.exports = (info, callback) => {
   sanitize(info);
-  console.log(info);
   handleFolder(info, callback);
 };

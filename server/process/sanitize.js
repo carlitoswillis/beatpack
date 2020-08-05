@@ -10,19 +10,20 @@ const ops = {
 module.exports = (info) => {
   info.folderPath = info.folderPath.replace('\n', '').split(String.fromCharCode(92)).join('');
   info.imagePath = info.mp4 ? info.imagePath.replace('\n', '').split(String.fromCharCode(92)).join('') : '';
-  info.tasks = Object.keys(info).filter((x) => ['mp4', 'mp3', 'zip', 'upload'].includes(x) && info[x]);
+  // info.tasks = Object.keys(info).filter((x) => ['mp4', 'mp3', 'zip', 'upload'].includes(x) && info[x]);
+  info.tasks = ['mp3', 'zip', 'mp4', 'upload'].filter((x) => Object.keys(info).includes(x) && info[x]);
+  console.log(info.tasks);
   info.tasks = info.tasks.map((x) => [x, ops[x]]);
   info.projects = [info.folderPath];
   info.images = [info.imagePath];
   info.tags = info.tags.split(',');
-  info.dates = new Array(7).fill(new Date())
+  info.dates = new Array(7).fill(new Date(info.startDate || new Date()))
     .map((date) => {
-      date.setHours(9, 0, 0, 0);
+      date.setHours(info.startTime.split(':')[0], info.startTime.split(':')[1], 0, 0);
       date.setDate(date.getDate() + 1);
       const time = date.toISOString();
       return time;
     });
-
   if (!info.single) {
     const folder = info.projects.pop();
     fs.readdirSync(folder).forEach((file) => {
