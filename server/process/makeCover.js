@@ -39,10 +39,7 @@ const makeCover = (data, callback) => {
   const bpmAndKey = namestuff[1].split('bpm ');
   const bpm = bpmAndKey[0];
   const key = bpmAndKey[1];
-  // const typebeat = `‎‎${type} type beat`;
-  const typebeat = `${type} type beat`;
   const measure = (str) => (2.2639 * 1080) / (str.length + 8);
-  const size = measure(typebeat);
   const [red, green, blue] = [randomcolor(), randomcolor(), randomcolor()];
   const colorsnumber = getRndInteger(3, 20);
   const colorsArr = colors();
@@ -85,21 +82,24 @@ const makeCover = (data, callback) => {
         .write(`${output}/cropped.jpg`, function (err) {
           if (err) return console.dir(arguments);
           console.log('cropped for thumbnail and added border');
-          return gm('/Users/carlitoswillis/Documents/graphic sources/typebeat.png')
+          return gm('/Users/carlitoswillis/Documents/graphic sources/typebeat2.png')
             .gravity('North')
             .background(`rgb(${colorsArr})`)
             .extent(1080, 1080)
-            .fill('black')
-            .stroke('black', 4)
+            .gravity('South')
+            .font('/Users/carlitoswillis/Downloads/arial-black.ttf')
+            .fontSize(measure(type))
+            .fill(`rgb(${[...colorsArr].map((x) => x * 0.85)})`)
+            .stroke(`rgb(${[...colorsArr].map((x) => x * 0.85)})`, 10)
+            .drawText(0, measure('Type Beat') * 1.95, type)
+            .fill('white')
+            .stroke('none')
+            .drawText(-5, measure('Type Beat') * 2, type)
             // .gravity('North')
             // .fontSize(407)
             // .drawText(0, 366, 'FREE')
             // .fontSize(180)
             // .drawText(0, 529, 'DOWNLOAD')
-            .gravity('South')
-            .fontSize(measure(type))
-            .font('/Users/carlitoswillis/Downloads/arial-black.ttf')
-            .drawText(0, measure('Type Beat') * 1.9, type)
             // .fontSize(measure('Type Beat'))
             // .drawText(0, 67, 'Type Beat')
             .write(`${output}/text.jpg`, (err) => {
@@ -111,7 +111,7 @@ const makeCover = (data, callback) => {
                 .write(`${output}/thumb.jpg`, function (err) {
                   if (err) return console.dir(arguments);
                   console.log('finished thumbnail');
-                  gm(`${output}/main.jpg`)
+                  return gm(`${output}/main.jpg`)
                     .gravity('North')
                     .resize(null, 1080)
                     .crop(1920, 1080)
@@ -121,9 +121,13 @@ const makeCover = (data, callback) => {
                       if (err) return console.dir(arguments);
                       console.log('finished fullscreen image for video');
                       // gm.source = `${output}/fullscreen.jpg`;
-                      gm(`${input}`)
+                      return gm(`${input}`)
                         .gravity('North')
-                        .resize(dimensions.width <= dimensions.height ? 1000 : null, dimensions.height <= dimensions.width ? 1000 : null)
+                        .resize(dimensions.width <= dimensions.height
+                          ? 1000
+                          : null, dimensions.height <= dimensions.width
+                          ? 1000
+                          : null)
                         .crop(1000, 1000, 0, 0)
                         .colors(colorsnumber)
                         .noise('poisson')
@@ -147,7 +151,7 @@ const makeCover = (data, callback) => {
                         .write(`${output}/cropped2.jpg`, function (err) {
                           if (err) return console.dir(arguments);
                           console.log('Cropped for cover art');
-                          gm(`${output}/cropped2.jpg`)
+                          return gm(`${output}/cropped2.jpg`)
                             .composite('/Users/carlitoswillis/Documents/brand graphics/cmd logo/barlogocover.png')
                             .write(`/Users/carlitoswillis/Google Drive (carlitoswillis@berkeley.edu)/Track Outs/processed/${name} cover.jpg`, (err) => {
                               if (err) throw err;

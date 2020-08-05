@@ -1,7 +1,7 @@
 {
   "name": "beatpack",
   "version": "1.0.0",
-  "description": "zip up stems, convert main file to mp3, create a video from the beat",
+  "description": "zip, convert to mp3, create a video, and upload to YouTube",
   "main": "index.js",
   "scripts": {
     "build:dev": "parallel-webpack --watch",

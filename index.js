@@ -1,6 +1,4 @@
 const electron = require('electron');
-const path = require('path');
-const url = require('url');
 const server = require('./server');
 
 server();
@@ -17,10 +15,14 @@ app.on('ready', () => {
       webviewTag: true,
     },
   });
-  // mainWindow.loadURL(url.format({
-  //   pathname: path.join(__dirname, './public/index.html'),
-  //   protocol: 'file:',
-  //   slashes: true,
-  // }));
+  /*
+  const path = require('path');
+  const url = require('url');
+  mainWindow.loadURL(url.format({
+    pathname: path.join(__dirname, './public/index.html'),
+    protocol: 'file:',
+    slashes: true,
+  }));
+  */
   mainWindow.loadURL('http://localhost:5000');
 });

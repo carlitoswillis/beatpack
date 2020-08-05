@@ -1,6 +1,6 @@
 /* eslint-disable no-param-reassign */
 const {
-  fs, mp3, zip, mp4, upload,
+  fs, mp3, zip, mp4, upload, // makecover, delete files?
 } = require('./sanitizeImports');
 
 const ops = {
@@ -8,36 +8,52 @@ const ops = {
 };
 
 module.exports = (info) => {
-  info.folderPath = info.folderPath.replace('\n', '').split(String.fromCharCode(92)).join('');
-  info.imagePath = info.mp4 ? info.imagePath.replace('\n', '').split(String.fromCharCode(92)).join('') : '';
-  // info.tasks = Object.keys(info).filter((x) => ['mp4', 'mp3', 'zip', 'upload'].includes(x) && info[x]);
-  info.tasks = ['mp3', 'zip', 'mp4', 'upload'].filter((x) => Object.keys(info).includes(x) && info[x]);
-  console.log(info.tasks);
+  info.folderPath = info.folderPath
+    .replace('\n', '')
+    .split(String.fromCharCode(92))
+    .join('');
+  info.imagePath = info.mp4
+    ? info.imagePath.replace('\n', '')
+      .split(String.fromCharCode(92))
+      .join('')
+    : '';
+  /* info.tasks = Object.keys(info)
+    .filter((x) => ['mp4', 'mp3', 'zip', 'upload']
+      .includes(x) && info[x]); */
+  info.tasks = ['mp3', 'zip', 'mp4', 'upload']
+    .filter((x) => Object.keys(info)
+      .includes(x) && info[x]);
   info.tasks = info.tasks.map((x) => [x, ops[x]]);
   info.projects = [info.folderPath];
   info.images = [info.imagePath];
   info.tags = info.tags.split(',');
-  info.dates = new Array(7).fill(new Date(info.startDate || new Date()))
+  info.dates = new Array(7)
+    .fill(new Date(info.startDate || new Date()))
     .map((date) => {
-      date.setHours(info.startTime.split(':')[0], info.startTime.split(':')[1], 0, 0);
+      date.setHours(info.startTime
+        .split(':')[0],
+      info.startTime
+        .split(':')[1], 0, 0);
       date.setDate(date.getDate() + 1);
       const time = date.toISOString();
       return time;
     });
   if (!info.single) {
     const folder = info.projects.pop();
-    fs.readdirSync(folder).forEach((file) => {
-      const fname = `${info.folderPath}/${file}`;
-      if (fs.statSync(fname).isDirectory()) {
-        info.projects.push(fname);
-      }
-    });
-    fs.readdirSync(info.images.pop()).forEach((image) => {
-      const imagePath = `${info.imagePath}/${image}`;
-      if (image[0] !== '.' && !fs.statSync(imagePath).isDirectory()) {
-        info.images.push(imagePath);
-      }
-    });
+    fs.readdirSync(folder)
+      .forEach((file) => {
+        const fname = `${info.folderPath}/${file}`;
+        if (fs.statSync(fname).isDirectory()) {
+          info.projects.push(fname);
+        }
+      });
+    fs.readdirSync(info.images.pop())
+      .forEach((image) => {
+        const imagePath = `${info.imagePath}/${image}`;
+        if (image[0] !== '.' && !fs.statSync(imagePath).isDirectory()) {
+          info.images.push(imagePath);
+        }
+      });
   }
 
   info.folderPath = info.projects.pop();

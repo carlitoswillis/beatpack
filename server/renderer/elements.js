@@ -10,4 +10,5 @@ const typebeatSearch = document.getElementById('typebeatSearch');
 const results = document.getElementById('results');
 const searchedArtist = document.getElementById('searchedArtist');
 
-module.exports = { folder, image, quantityButton, resetButton, startButton, checkboxes, searchBox, searchButton, results, searchedArtist, typebeatSearch}
+module.exports = { folder, image, quantityButton, resetButton, startButton, checkboxes, searchBox, searchButton, results, searchedArtist, typebeatSearch,
+};

@@ -15,8 +15,8 @@ module.exports = () => {
     fi`, (err, data) => {
     if (err) console.error(err);
     if (data.includes('not')) {
-      cp.exec('open -a "Docker Desktop"', (err) => {
-        if (err) console.log('Docker Could Not Start\nVideo Functionality Requires Docker Or FFMPEG', err);
+      cp.exec('open -a "Docker Desktop"', (error) => {
+        if (error) console.log('Docker Could Not Start\nVideo Functionality Requires Docker Or FFMPEG', error);
       });
     }
   });
