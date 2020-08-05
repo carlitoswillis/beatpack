@@ -1,4 +1,3 @@
-const fs = require('fs');
 const { Lame } = require('node-lame');
 
 module.exports = (info, callback) => {

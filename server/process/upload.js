@@ -56,9 +56,9 @@ const uploader = (info, callback) => {
             console.log(err);
             throw err;
           }
-          console.log('thumbnail uploaded');
+          console.log('Thumbnail uploaded');
           fs.unlink(`${folderPath}/thumb.jpg`, () => {
-            console.log('thumbnail deleted');
+            console.log('Thumbnail deleted');
             fs.unlink(videoPath, () => {
               console.log('Video deleted');
               console.log('All Done');

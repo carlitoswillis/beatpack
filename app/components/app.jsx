@@ -15,7 +15,7 @@ class App extends Component {
     const { testInfo } = props;
     const defaultInfo = testInfo || {
       // eslint-disable-next-line max-len
-      single: true, mp3: true, mp4: true, zip: true, upload: true, imagePathFiles: [], folderPathFiles: [], date: new Date(), startDate: '2020-10-31', startTime: '9:29',
+      single: false, mp3: true, mp4: true, zip: true, upload: true, imagePathFiles: [], folderPathFiles: [], date: new Date(), startDate: '2020-10-31', startTime: '9:29',
     };
 
     const info = { ...defaultInfo };

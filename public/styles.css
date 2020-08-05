@@ -33,7 +33,8 @@
 h1 {
   text-align: left;
   font-size: 3em;
-  font-family: 'Trebuchet MS';
+  font-family: 'Gill Sans MT';
+  font-weight: bold;
   /* margin: 5px 5px; */
   color: white;
   background-color:  rgb(169, 215, 255);
@@ -47,10 +48,11 @@ h2 {
 
 h3 {
   text-align: left;
-  font-family: 'Gill Sans MT';
-  /* margin: 5px 8px; */
+  font-family: 'Arial Black';
+  margin: 7px 0;
   /* background-color:  rgb(169, 215, 255); */
-  padding: 5px;
+  font-size: 1.6em;
+  padding: 8px;
 
 }
 

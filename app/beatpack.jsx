@@ -16,7 +16,7 @@ const test = (bulk) => {
 };
 
 ReactDOM.render(
-  <App testInfo={test()} />,
-  // <App />,
+  // <App testInfo={test()} />,
+  <App />,
   document.getElementById('app'),
 );
