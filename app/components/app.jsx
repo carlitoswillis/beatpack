@@ -185,6 +185,7 @@ class App extends Component {
           <input onChange={(e) => this.handleChange(e)} id="type" className="titleInput" type="text" placeholder="type beat" />
           <input maxLength="100" onChange={(e) => this.handleChange(e)} id="title" className="titleInput" type="text" placeholder="SEO Optimized Title" />
           <textarea onChange={(e) => this.handleChange(e)} className="tagsTextArea" id="tags" name="tags" rows="4" cols="50" defaultValue="Paste Tags Here" />
+          <textarea onChange={(e) => this.handleChange(e)} className="tagsTextArea" id="description" name="description" rows="4" cols="50" defaultValue="Further Description About The Beats, The Related Artists, Etc" />
         </div>
         {/* {loggedIn
           ? <div />

@@ -36,7 +36,7 @@ const login = (req, res) => {
         console.log(err);
       } else {
         console.log('user data\n', response.data, '\n');
-        res.redirect('http://localhost:5000');
+        res.redirect('http://localhost:5000/beatpack.html');
       }
     });
   }
@@ -64,8 +64,8 @@ const callbackHandler = (req, res, callback) => {
             console.log(data);
           });
           authed = true;
+          res.redirect('http://localhost:5000/oath2callback');
           callback();
-          res.redirect('http://localhost:5000/loggedin');
         });
       }
     });

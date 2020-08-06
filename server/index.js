@@ -20,7 +20,7 @@ module.exports = () => {
       });
     }
   });
-  if (tokens.expiry_date > Date.now()) {
+  if (tokens.expiry_date < Date.now()) {
     cp.exec('open -a "Google Chrome" http://localhost:5000/login', (err) => {
       if (err) console.error(err);
     });
@@ -66,7 +66,9 @@ module.exports = () => {
   });
 
   app.listen(5000, (err) => {
-    if (err) throw err;
+    if (err) {
+      console.error(err);
+    }
     console.log('http://localhost:5000');
   });
 };

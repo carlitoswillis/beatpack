@@ -39,7 +39,7 @@ const makeCover = (data, callback) => {
   const bpmAndKey = namestuff[1].split('bpm ');
   const bpm = bpmAndKey[0];
   const key = bpmAndKey[1];
-  const measure = (str) => (2.2639 * 1080) / (str.length + 8);
+  const measure = (str) => (2.2639 * 1080) / (str.length + 5);
   const [red, green, blue] = [randomcolor(), randomcolor(), randomcolor()];
   const colorsnumber = getRndInteger(3, 20);
   const colorsArr = colors();
@@ -82,19 +82,19 @@ const makeCover = (data, callback) => {
         .write(`${output}/cropped.jpg`, function (err) {
           if (err) return console.dir(arguments);
           console.log('cropped for thumbnail and added border');
-          return gm('/Users/carlitoswillis/Documents/graphic sources/typebeat2.png')
+          return gm('/Users/carlitoswillis/Documents/graphic sources/typebeat.png')
             .gravity('North')
             .background(`rgb(${colorsArr})`)
             .extent(1080, 1080)
             .gravity('South')
-            .font('/Users/carlitoswillis/Downloads/arial-black.ttf')
+            .font('/Users/carlitoswillis/Downloads/bebas_neue/BebasNeue-Regular.ttf')
             .fontSize(measure(type))
             .fill(`rgb(${[...colorsArr].map((x) => x * 0.85)})`)
             .stroke(`rgb(${[...colorsArr].map((x) => x * 0.85)})`, 10)
-            .drawText(0, measure('Type Beat') * 1.95, type)
+            .drawText(0, measure('Type Beat') * 1.1, type)
             .fill('white')
             .stroke('none')
-            .drawText(-5, measure('Type Beat') * 2, type)
+            .drawText(-5, measure('Type Beat') * 1, type)
             // .gravity('North')
             // .fontSize(407)
             // .drawText(0, 366, 'FREE')
@@ -113,7 +113,11 @@ const makeCover = (data, callback) => {
                   console.log('finished thumbnail');
                   return gm(`${output}/main.jpg`)
                     .gravity('North')
-                    .resize(null, 1080)
+                    .resize(dimensions.width <= dimensions.height
+                      ? 1920
+                      : null, dimensions.height <= dimensions.width
+                      ? 1080
+                      : null)
                     .crop(1920, 1080)
                     .background('black')
                     .extent(1920, 1080)

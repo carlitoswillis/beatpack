@@ -115,7 +115,7 @@ const start = (searchTerm, callback) => {
           newthings.add(JSON.stringify(t));
         });
         newthings = Array.from(newthings).map((x) => JSON.parse(x));
-        newthings.sort((b, c) => (b.followers.total >= c.followers.total ? 1 : -1));
+        newthings.sort((b, c) => (b.followers.total <= c.followers.total ? 1 : -1));
         newthings.unshift(originalArtist);
         callback(null, newthings);
       });

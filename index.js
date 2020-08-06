@@ -24,5 +24,6 @@ app.on('ready', () => {
     slashes: true,
   }));
   */
-  mainWindow.loadURL('http://localhost:5000');
+  // mainWindow.loadURL('http://localhost:5000');
+  mainWindow.loadURL('http://localhost:5000/beatpack.html');
 });

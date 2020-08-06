@@ -26,7 +26,7 @@ module.exports = (info) => {
   info.tasks = info.tasks.map((x) => [x, ops[x]]);
   info.projects = [info.folderPath];
   info.images = [info.imagePath];
-  info.tags = info.tags.split(',');
+  info.tags = info.tags.split(', ').join(',').split(',');
   info.dates = new Array(7)
     .fill(new Date(info.startDate || new Date()))
     .map((date) => {

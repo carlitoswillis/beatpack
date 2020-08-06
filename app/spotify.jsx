@@ -30,9 +30,7 @@ class SpotifySearch extends Component {
         timeout: 0,
       };
       $.ajax(settings).done((response) => {
-        const state = { searchTerm };
-        state.results = response;
-        this.setState(state);
+        this.setState({ results: response });
       });
     }
   }
