@@ -2,7 +2,7 @@
   "name": "beatpack",
   "version": "1.0.0",
   "description": "zip, convert to mp3, create a video, and upload to YouTube",
-  "main": "index.js",
+  "main": "main.js",
   "scripts": {
     "build:dev": "parallel-webpack --watch",
     "test": "jest",
@@ -37,6 +37,7 @@
     "nodemon": "^2.0.4",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
+    "react-transition-group": "^4.4.1",
     "uninstall": "0.0.0",
     "webpack-cli": "^3.3.12",
     "xmlhttprequest": "^1.8.0"
@@ -54,6 +55,7 @@
     "eslint-plugin-react-hooks": "^4.0.0",
     "jest": "^26.2.2",
     "parallel-webpack": "^2.6.0",
+    "svg-inline-loader": "^0.8.2",
     "webpack": "^4.44.0"
   }
 }

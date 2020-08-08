@@ -1,3 +1,10 @@
+body {
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
 .container {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -6,10 +13,10 @@
 }
 
 .dropArea {
-  height: 150px;
-  margin: auto;
-  width: 95%;
+  height: 300px;
+  width: 150px;
   background-color: rgb(169, 215, 255);
+  overflow: scroll;
 }
 
 .dropArea:hover {
@@ -37,16 +44,19 @@ h1 {
   font-weight: bold;
   /* margin: 5px 5px; */
   color: white;
-  background-color:  rgb(169, 215, 255);
+  background-color:  rgb(32, 48, 62);
   padding: 5px;
+  -webkit-app-region: drag;
 }
 
 h2 {
   text-align: center;
   font-family: 'Trebuchet MS';
+  color: white;
 }
 
 h3 {
+  color: white;
   text-align: left;
   font-family: 'Arial Black';
   margin: 7px 0;
@@ -110,6 +120,7 @@ h3 {
 .checkboxLabel {
   font-family: 'Trebuchet MS', sans-serif;
   /* display: none; */
+  color: white;
   text-align: center;
   margin: 7px auto;
 }
@@ -194,4 +205,35 @@ h3 {
   grid-template-columns: 1fr;
   width: 40%;
   margin: 30px auto;
+}
+
+body {
+  margin: 0;
+  background: #151616;
+  font-family: roboto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.file {
+  border-radius: 4px;
+  color: rgb(190, 222, 250);
+  text-align: right;
+  width: 80%;
+  margin: 10px 15px;
+  padding: 5px;
+  border-bottom: 1px solid cadetblue;
+}
+
+.dropTitle {
+  font-size: 1em;
+  margin-top: 2px;
+  padding-top: 2px;
+  position: absolute;
 }
