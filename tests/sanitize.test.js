@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 const sanitize = require('../server/process/sanitize');
 const testInfo = require('./testInfo');
 

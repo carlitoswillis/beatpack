@@ -4,7 +4,6 @@
 /* eslint-disable prefer-rest-params */
 // gm - Copyright Aaron Heckmann <aaron.heckmann+github@gmail.com> (MIT Licensed)
 const gm = require('gm');
-const fs = require('fs');
 const sizeOf = require('image-size');
 
 function randomcolor() {

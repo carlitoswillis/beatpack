@@ -42,7 +42,7 @@ describe('Upload video to youtube', () => {
         done(error);
       }
     }
-    // skip(single, callback);
-    upload(single, callback);
+    skip(single, callback);
+    // upload(single, callback);
   });
 });

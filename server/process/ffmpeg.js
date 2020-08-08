@@ -1,6 +1,5 @@
 /* eslint-disable no-shadow */
 /* eslint-disable no-param-reassign */
-const fs = require('fs');
 const cp = require('child_process');
 
 // const command = new FfmpegCommand();
