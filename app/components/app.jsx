@@ -15,7 +15,7 @@ class App extends Component {
     const { testInfo } = props;
     const defaultInfo = testInfo || {
       // eslint-disable-next-line max-len
-      single: false, mp3: true, mp4: true, zip: true, upload: true, imagePathFiles: [], folderPathFiles: [], date: new Date(), startDate: '2020-10-31', startTime: '9:29',
+      single: false, mp3: true, makeCover: true, mp4: true, zip: true, upload: true, imagePathFiles: [], folderPathFiles: [], date: new Date(), startDate: '2020-10-31', startTime: '9:29', outputPath: '/Users/carlitoswillis/Google Drive (carlitoswillis@berkeley.edu)/Track Outs/processed',
     };
 
     const info = { ...defaultInfo };

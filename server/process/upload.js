@@ -10,12 +10,9 @@ oAuth2Client.setCredentials(tokens);
 
 const uploader = (info, callback) => {
   const {
-    folderPath, name, tags, dates, title, beatName, type,
+    folderPath, tags, date, title, videoPath,
   } = info;
-  const date = dates.shift();
-  const videoPath = `${folderPath}/${name}.mp4`;
-  const searchKeyword = `${beatName.split(' ').join('%20')}%20${type.split(' ').join('%20')}`;
-  const description = `${title} available for download\nFree Download or Purchase: https://player.beatstars.com/?storeId=71006&search_keyword=${searchKeyword}\n\nig: http://instagram.com/barlitxs\ntwitter: http://twitter.com/barlitxs\nsoundcloud: http://soundcloud.com/barlitxs\n\n${title}\nprod. barlitxs\n\n${info.description || ''}\n\n${tags}`;
+  const description = info.vidDescription;
   const youtube = google.youtube({ version: 'v3', auth: oAuth2Client });
   youtube.videos.insert(
     {
@@ -28,6 +25,7 @@ const uploader = (info, callback) => {
         status: {
           privacyStatus: 'private',
           publishAt: date,
+          madeForKids: false,
         },
       },
       // This is for the callback function
@@ -40,8 +38,7 @@ const uploader = (info, callback) => {
     },
     (err, data) => {
       if (err) throw err;
-      console.log(data);
-      console.log('video uploaded');
+      console.log('Video uploaded');
       youtube.thumbnails.set(
         {
           videoId: data.data.id,
@@ -50,21 +47,14 @@ const uploader = (info, callback) => {
             body: fs.createReadStream(`${folderPath}/thumb.jpg`),
           },
         },
-        (err, thumbResponse) => {
+        (err) => {
           if (err) {
             console.log('Error response');
             console.log(err);
             throw err;
           }
           console.log('Thumbnail uploaded');
-          fs.unlink(`${folderPath}/thumb.jpg`, () => {
-            console.log('Thumbnail deleted');
-            fs.unlink(videoPath, () => {
-              console.log('Video deleted');
-              console.log('All Done');
-              callback(null, thumbResponse);
-            });
-          });
+          callback(null);
         },
       );
     },

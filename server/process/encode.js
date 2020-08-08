@@ -1,8 +1,8 @@
 const { Lame } = require('node-lame');
 
 module.exports = (info, callback) => {
-  const { name, folderPath } = info;
-  const mp3Path = `${folderPath}/${name}.mp3`;
+  const { name, folderPath, outputPath } = info;
+  const mp3Path = `${outputPath}/${name}.mp3`;
   const encoder = new Lame({
     output: mp3Path,
     bitrate: 320,

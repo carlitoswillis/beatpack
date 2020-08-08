@@ -8,11 +8,7 @@ module.exports = (info, callback) => {
     const output = fs.createWriteStream(`${path}.zip`);
     const archive = archiver('zip');
     output.on('close', () => {
-      fs.rename(`${info.folderPath}/stems/${info.name}.wav`, `${path}.wav`, (err) => {
-        if (err) throw err;
-        console.log('Moved wav file!');
-        callback(null, `${archive.pointer()} total bytes`);
-      });
+      callback(null, `${archive.pointer()} total bytes`);
     });
     archive.on('error', (err) => {
       callback(err);

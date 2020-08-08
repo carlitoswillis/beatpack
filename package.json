@@ -6,6 +6,7 @@
   "scripts": {
     "build:dev": "parallel-webpack --watch",
     "test": "jest",
+    "test:dev": "jest --watchAll",
     "cli": "node index.js",
     "start": "electron .",
     "package-mac": "electron-packager . --overwrite --platform=darwin --arch=x64 --icon=assets/icons/mac/icon.icns --prune=true --out=release-builds",
@@ -29,7 +30,6 @@
     "google-auth-library": "^6.0.6",
     "googleapis": "^58.0.0",
     "image-size": "^0.8.3",
-    "jest": "^26.2.2",
     "jquery": "^3.5.1",
     "jsonwebtoken": "^8.5.1",
     "multer": "^1.4.2",
@@ -52,6 +52,7 @@
     "eslint-plugin-jsx-a11y": "^6.3.1",
     "eslint-plugin-react": "^7.20.5",
     "eslint-plugin-react-hooks": "^4.0.0",
+    "jest": "^26.2.2",
     "parallel-webpack": "^2.6.0",
     "webpack": "^4.44.0"
   }

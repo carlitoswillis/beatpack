@@ -1,31 +1,61 @@
 /* eslint-disable no-param-reassign */
 const {
-  fs, mp3, zip, mp4, upload, // makecover, delete files?
+  fs, mp3, zip, makeCover, mp4, upload, cleanUp, // makecover, delete files?
 } = require('./sanitizeImports');
 
 const ops = {
-  mp3, zip, mp4, upload,
+  mp3, zip, makeCover, mp4, upload, cleanUp,
 };
 
-module.exports = (info) => {
-  info.folderPath = info.folderPath
-    .replace('\n', '')
-    .split(String.fromCharCode(92))
-    .join('');
-  info.imagePath = info.mp4
-    ? info.imagePath.replace('\n', '')
+const cleanPath = (input) => {
+  if (input) {
+    return input.replace('\n', '')
       .split(String.fromCharCode(92))
-      .join('')
-    : '';
-  /* info.tasks = Object.keys(info)
-    .filter((x) => ['mp4', 'mp3', 'zip', 'upload']
-      .includes(x) && info[x]); */
-  info.tasks = ['mp3', 'zip', 'mp4', 'upload']
+      .join('');
+  }
+  return undefined;
+};
+
+const nextImage = (info) => {
+  let count = 0;
+  const cap = info.images.length;
+  return function () {
+    count = (count + 1) % cap;
+    return info.images[count];
+  };
+};
+
+const nextBeat = function () {
+  this.folderPath = this.projects.pop();
+  this.imagePath = this.nextImage();
+  this.name = this.folderPath.split('/').pop();
+  [this.beatName, this.bpm] = this.name.split(' (prod. barlitxs) ');
+  [this.bpm, this.key] = this.bpm.split(' bpm ');
+  this.videoPath = `${this.folderPath}/${this.name}.mp4`;
+  this.date = this.dates.shift();
+  this.title = `${this.title} ${this.beatName}`;
+  const titleArr = this.title.split('');
+  while (titleArr.length > 100) {
+    titleArr.pop();
+    this.title = titleArr.join('');
+  }
+  this.searchKeyword = `${this.beatName.split(' ').join('%20')}%20${this.type.split(' ').join('%20')}`;
+  this.vidDescription = `${this.title} available for download\nFree Download or Purchase: https://player.beatstars.com/?storeId=71006&search_keyword=${this.searchKeyword}\n\nig: http://instagram.com/barlitxs\ntwitter: http://twitter.com/barlitxs\nsoundcloud: http://soundcloud.com/barlitxs\n\n${this.title}\nprod. barlitxs\n\n${this.description || ''}\n\n${this.tags}`;
+};
+
+const sanitize = (info) => {
+  info.folderPath = cleanPath(info.folderPath);
+  info.imagePath = cleanPath(info.imagePath);
+  info.outputPath = cleanPath(info.outputPath);
+  // map tasks
+  info.tasks = ['mp3', 'zip', 'makeCover', 'mp4', 'upload', 'cleanUp']
     .filter((x) => Object.keys(info)
-      .includes(x) && info[x]);
-  info.tasks = info.tasks.map((x) => [x, ops[x]]);
+      .includes(x) && info[x])
+    .map((x) => [x, ops[x]]);
+  // queues for projects && images
   info.projects = [info.folderPath];
   info.images = [info.imagePath];
+  // youtube information
   info.tags = info.tags.split(', ').join(',').split(',');
   info.dates = new Array(7)
     .fill(new Date(info.startDate || new Date()))
@@ -38,6 +68,9 @@ module.exports = (info) => {
       const time = date.toISOString();
       return time;
     });
+  // prep for bulk
+  info.nextImage = nextImage(info);
+  info.nextBeat = nextBeat;
   if (!info.single) {
     const folder = info.projects.pop();
     fs.readdirSync(folder)
@@ -55,16 +88,9 @@ module.exports = (info) => {
         }
       });
   }
-
-  info.folderPath = info.projects.pop();
-  info.imagePath = info.images[Math.floor(Math.random() * info.images.length)];
-  info.name = info.folderPath.split('/').pop();
-  [info.beatName] = info.name.split(' (prod. barlitxs)');
-  info.title = `${info.title} ${info.beatName}`;
-  const titleArr = info.title.split('');
-  while (titleArr.length > 100) {
-    titleArr.pop();
-    info.title = titleArr.join('');
-  }
+  info.nextImage();
+  info.nextBeat();
   return info;
 };
+
+module.exports = sanitize;
