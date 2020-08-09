@@ -52,15 +52,26 @@ ipc.on('start-processing', (event, info) => {
 
 ipc.on('process-file-selection', (event, data) => {
   const { id, filePaths } = JSON.parse(data);
+  const paths = [];
   const folders = [];
   filePaths.forEach((folderPath) => {
-    folders.push(fsPromises.readdir(folderPath));
+    const folder = fsPromises.readdir(folderPath);
+    paths.push(folderPath);
+    folders.push(folder);
   });
   Promise.all(folders)
-    .then((folder) => {
-      const files = folder
-        .reduce((f1, f2) => f1.concat(f2), [])
-        .filter((name) => name[0] !== '.');
-      event.sender.send('processed-files', JSON.stringify({ id, files }));
+    .then((values) => {
+      const lib = {};
+      paths.forEach((name) => {
+        lib[name] = [];
+      });
+      values.forEach((val, idx) => {
+        lib[paths[idx]].push(...val.filter((name) => name[0] !== '.' && name !== 'Icon\r'));
+      });
+      event
+        .sender
+        .send('processed-files', JSON.stringify({
+          id, files: Object.values(lib).reduce((a, b) => a.concat(b), []), lib,
+        }));
     });
 });

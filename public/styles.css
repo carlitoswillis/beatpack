@@ -13,8 +13,8 @@ body {
 }
 
 .dropArea {
-  height: 300px;
-  width: 150px;
+  height: 100vh;
+  width: 300px;
   background-color: rgb(169, 215, 255);
   overflow: scroll;
 }
@@ -38,6 +38,7 @@ body {
 }
 
 h1 {
+  display: grid;
   text-align: left;
   font-size: 3em;
   font-family: 'Gill Sans MT';
@@ -221,6 +222,10 @@ ul {
   padding: 0;
 }
 
+.files {
+  margin-top: 54px;
+}
+
 .file {
   border-radius: 4px;
   color: rgb(190, 222, 250);
@@ -232,8 +237,47 @@ ul {
 }
 
 .dropTitle {
-  font-size: 1em;
-  margin-top: 2px;
-  padding-top: 2px;
+  font-family: 'SF Pro';
+  font-size: 1.4em;
   position: absolute;
+  width: 300px;
+  background-color: rgb(169, 215, 255);
+  padding: 15px 0;
+  margin: 0 auto;
+  background-color: rgb(78, 116, 150);
+  filter: drop-shadow(0px 2px 1px rgb(67, 101, 131));
+}
+
+.droppedFolderTitleBG {
+  background-color:  rgb(32, 48, 62);
+}
+
+.droppedFolderTitle {
+  margin: 0;
+  margin-bottom: 20px;
+  padding: 5px 0;
+  font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+  color: white;
+  font-size: 1em;
+}
+
+.modal {
+  display: grid;
+  position: absolute;
+  left: 400px;
+  top: 50%;
+  border: 2px solid rgb(0, 104, 104);
+  background-color: rgb(0, 65, 65);
+  font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+  color: whitesmoke;
+  margin: 0;
+}
+
+.modalTitle {
+  font-size: 1em;
+}
+
+.trackInfos {
+  display: grid;
+  grid-template-columns: 1fr;
 }
