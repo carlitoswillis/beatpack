@@ -1,23 +1,22 @@
 import React from 'react';
 
-const CheckBoxes = ({ handleCheck }) => (
+const Checkbox = ({ id, info, handleCheck }) => (
+  <div className="options">
+    {info[id]
+      ? (<button onClick={(e) => handleCheck(e)} className="features selectedFeature" defaultChecked id={id} type="button">{id}</button>)
+      : (<button onClick={(e) => handleCheck(e)} className="features notSelectedFeature" defaultChecked id={id} type="button">{id}</button>)}
+  </div>
+);
+
+const CheckBoxes = ({ handleCheck, info }) => (
   <div className="checkboxes">
-    <div className="options">
-      <p className="checkboxLabel">mp3ify</p>
-      <input onClick={(e) => handleCheck(e)} className="features" defaultChecked id="mp3" type="checkbox" />
-    </div>
-    <div className="options">
-      <p className="checkboxLabel">zip</p>
-      <input onClick={(e) => handleCheck(e)} className="features" defaultChecked id="zip" type="checkbox" />
-    </div>
-    <div className="options">
-      <p className="checkboxLabel">mp4ify</p>
-      <input onClick={(e) => handleCheck(e)} className="features" defaultChecked id="mp4" type="checkbox" />
-    </div>
-    <div className="options">
-      <p className="checkboxLabel">upload</p>
-      <input onClick={(e) => handleCheck(e)} className="features" defaultChecked id="upload" type="checkbox" />
-    </div>
+    <Checkbox handleCheck={handleCheck} id="mp3" info={info} />
+    <Checkbox handleCheck={handleCheck} id="zip" info={info} />
+    <Checkbox handleCheck={handleCheck} id="art" info={info} />
+    <Checkbox handleCheck={handleCheck} id="mp4" info={info} />
+    <Checkbox handleCheck={handleCheck} id="upload" info={info} />
+    <Checkbox handleCheck={handleCheck} id="delete" info={info} />
+    <Checkbox handleCheck={handleCheck} id="all" info={info} />
   </div>
 );
 

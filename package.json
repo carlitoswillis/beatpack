@@ -17,6 +17,7 @@
   "license": "ISC",
   "dependencies": {
     "archiver": "^5.0.0",
+    "custom-electron-titlebar": "^3.2.3",
     "detect-node": "^2.0.4",
     "dragula": "^3.7.2",
     "ejs": "^3.1.3",

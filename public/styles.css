@@ -1,15 +1,13 @@
-body {
-}
-
 ::-webkit-scrollbar {
   display: none;
 }
 
 .container {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  width: 50%;
-  margin: auto;
+  display: inline-flex;
+}
+
+.folder {
+  padding-top: 34px;
 }
 
 .dropArea {
@@ -19,10 +17,18 @@ body {
   overflow: scroll;
 }
 
-.dropArea:hover {
+.dropArea2 {
+  height: 100vh;
+  width: 300px;
+  background-color: rgb(182, 64, 64);
+  overflow: scroll;
+}
+
+/* .dropArea:hover {
   outline: 2px solid blue;
   outline-offset: -2px;
-}
+} */
+
 .hoveredDrop {
   outline: 2px solid blue;
   outline-offset: -2px;
@@ -30,14 +36,17 @@ body {
 .grayArea {
   background-color: rgb(78, 116, 150);
 }
-
+.grayArea2 {
+  background-color: rgb(189, 120, 120);
+}
 .dropLabel {
   font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
   color: white;
   text-align: center;
 }
 
-h1 {
+.titleBG {
+  position: fixed;
   display: grid;
   text-align: left;
   font-size: 3em;
@@ -46,8 +55,10 @@ h1 {
   /* margin: 5px 5px; */
   color: white;
   background-color:  rgb(32, 48, 62);
-  padding: 5px;
-  -webkit-app-region: drag;
+  /* -webkit-app-region: drag; */
+  grid-template-columns: 95fr 5fr;
+  width: 100%;
+  z-index: 2;
 }
 
 h2 {
@@ -63,8 +74,6 @@ h3 {
   margin: 7px 0;
   /* background-color:  rgb(169, 215, 255); */
   font-size: 1.6em;
-  padding: 8px;
-
 }
 
 .buttonHolder {
@@ -101,21 +110,23 @@ h3 {
 
 .checkboxes {
   display: grid;
-  width: 50%;
-  margin: auto auto;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-columns: repeat(7, 1fr);
+  width: 300px;
+}
+
+.features {
+  display: grid;
+  text-align: center;
+  width: 100%;
+  /* height: 34px; */
+  padding: 10px 0;
 }
 
 /* checkboxes */
-.features {
-  width: 40px;
-  height: 40px;
-  margin: auto;
-}
 
 .options {
   display: grid;
-  margin: 30px auto;
+  margin: 0 0;
 }
 
 .checkboxLabel {
@@ -210,7 +221,8 @@ h3 {
 
 body {
   margin: 0;
-  background: #151616;
+  /* background: #151616; */
+  background-color: rgb(190, 222, 250);
   font-family: roboto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -231,9 +243,10 @@ ul {
   color: rgb(190, 222, 250);
   text-align: right;
   width: 80%;
-  margin: 10px 15px;
-  padding: 5px;
+  margin: 20px auto;
+  padding: 9px 5px;
   border-bottom: 1px solid cadetblue;
+  cursor: pointer;
 }
 
 .dropTitle {
@@ -265,19 +278,119 @@ ul {
   display: grid;
   position: absolute;
   left: 400px;
-  top: 50%;
-  border: 2px solid rgb(0, 104, 104);
-  background-color: rgb(0, 65, 65);
+  top: 20%;
+  /* border-radius: 10px; */
+  padding: 10px;
+  background-color:  rgb(32, 48, 62);
   font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
   color: whitesmoke;
   margin: 0;
+  width: 400px;
+  /* filter: drop-shadow(3px 4px 6px rgb(37, 63, 84)); */
+  filter: drop-shadow(6px 6px 50px rgb(215, 237, 255));
 }
 
 .modalTitle {
-  font-size: 1em;
+  padding-bottom: 10px;
+  font-size: 12pt;
 }
 
 .trackInfos {
   display: grid;
   grid-template-columns: 1fr;
+
+}
+
+.trackInput {
+  border: none;
+  background-color: rgb(32, 48, 62);
+  color: white;
+}
+
+::placeholder { /* Chrome, Firefox, Opera, Safari 10.1+ */
+  color: white;
+  opacity: .6; /* Firefox */
+}
+
+.emptyDropArea {
+  font-family: 'SF Pro';
+  font-size: 1em;
+  text-align: center;
+  margin: 80px auto;
+  color: white;
+  background-color: rgb(32, 48, 62);
+  padding: 200px 0;
+}
+
+.emptyDropArea2 {
+  font-family: 'SF Pro';
+  font-size: 1em;
+  text-align: center;
+  margin: 80px auto;
+  color: white;
+  background-color: rgb(130, 44, 44);
+  padding: 200px 0;
+}
+
+.closeX {
+  z-index: 2;
+  margin: auto;
+  background-color: rgb(78, 116, 150);
+  color: rgb(190, 222, 250);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.closeXInvisible {
+  z-index: 2;
+  margin: auto;
+  background-color: rgb(78, 116, 150);
+  color: rgb(78, 116, 150);
+  border: none;
+  border-radius: 10px;
+}
+
+.startButton {
+  position: relative;
+  margin: 0;
+  border: none;
+  background-color:rgb(32, 62, 48);
+  color: white;
+}
+
+.selectedFeature {
+  border: none;
+  background-color:rgb(28, 92, 99);
+  color: white;
+}
+.notSelectedFeature {
+  border: none;
+  background-color: rgb(87, 25, 25);
+  color: white;
+}
+
+input:focus {
+  outline: none !important;
+  /* border: 2px solid firebrick; */
+}
+button:focus {
+  outline: none !important;
+  /* border: 2px solid firebrick; */
+}
+
+
+.imagesList {
+  display: grid;
+  padding-top: 53px;
+}
+
+.imageLI {
+  margin: 0 auto;
+  padding: 0;
+}
+.listedImage {
+  width: 300px;
+  margin: 0 auto;
+  padding: 0;
 }
