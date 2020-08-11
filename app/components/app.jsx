@@ -106,7 +106,7 @@ function App({ data }) {
         }
       });
       delete updatedInfo.lib[folder[0]];
-      updatedInfo.files.projects = Object.values(updatedInfo.lib).reduce((a, b) => a.concat(b), []);
+      updatedInfo.files.projects = Object.values(updatedInfo.trackInfo).reduce((a, b) => a.concat(b), []);
       return updatedInfo;
     });
   };
@@ -140,6 +140,21 @@ function App({ data }) {
     updateInfo(updatedInfo);
   };
 
+  const removeImage = (img) => {
+    console.log(img);
+    updateInfo((prevInfo) => {
+      const updatedInfo = { ...prevInfo };
+      delete updatedInfo.imgInfo[img.imgPath];
+      updatedInfo.imageLib[img.path].splice([img.index]);
+      updatedInfo.imageLib[img.path].map((x, index) => {
+        x.index = index;
+        return x;
+      });
+      updatedInfo.files.images = Object.values(updatedInfo.imgInfo).reduce((a, b) => a.concat(b), []);
+      return updatedInfo;
+    });
+  };
+
   return (
     <div onClick={() => console.log(info)}>
       <div className="titleBG">
@@ -153,6 +168,7 @@ function App({ data }) {
           handleImageDrop={handleImageDrop}
           handleImageSelect={handleImageSelect}
           info={info}
+          removeImage={removeImage}
         />
         <InputArea info={info} inputHandler={inputHandler} />
       </div>

@@ -7,7 +7,40 @@ const stop = (e) => {
   e.stopPropagation();
 };
 
-function ImageDropArea({ handleImageDrop, handleImageSelect, info }) {
+function Image({ img, path, removeImage }) {
+  const [close, showClose] = useState(false);
+  return (
+    <>
+      <li className="imageLI">
+        <div
+          onFocus={(e) => {
+            stop(e);
+            showClose(true);
+          }}
+          onMouseOver={(e) => {
+            stop(e);
+            showClose(true);
+          }}
+          onMouseLeave={(e) => {
+            stop(e);
+            showClose(false);
+          }}
+        >
+          <img
+            className="listedImage"
+            alt="whatever you dropped"
+            src={`${path}`}
+          />
+          {close
+            ? (<button type="button" onClick={() => removeImage(img)} className="X">X</button>)
+            : (<button type="button" onClick={() => removeImage(img)} className="invisibleX">X</button>)}
+        </div>
+      </li>
+    </>
+  );
+}
+
+function ImageDropArea({ handleImageDrop, handleImageSelect, info, removeImage}) {
   const [files, setFiles] = useState([]);
   useEffect(() => {
     setFiles(info.imgInfo);
@@ -20,7 +53,11 @@ function ImageDropArea({ handleImageDrop, handleImageSelect, info }) {
       onDragEnter={stop}
       onDragLeave={stop}
       onKeyPress={(e) => { e.preventDefault(); e.stopPropagation(); handleImageSelect(); }}
-      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleImageSelect(); }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.target.className.includes('Area2')) handleImageSelect();
+      }}
       onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleImageDrop(e); }}
     >
       <div className="folder dropArea2 grayArea2">
@@ -29,7 +66,9 @@ function ImageDropArea({ handleImageDrop, handleImageSelect, info }) {
         {files && Object.keys(files).length
           ? (
             <ul className="imagesList">
-              {Object.keys(files).map((img) => (<li className="imageLI"><img className="listedImage" alt="whatever you dropped" src={`${img}`}/></li>))}
+              {Object.keys(files).map((key) => (
+                <Image img={files[key]} path={key} removeImage={removeImage} />
+              ))}
             </ul>
           )
           : (
@@ -43,4 +82,3 @@ function ImageDropArea({ handleImageDrop, handleImageSelect, info }) {
 }
 
 export default ImageDropArea;
-

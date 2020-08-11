@@ -115,6 +115,10 @@ ipc.on('process-image-selection', (event, data) => {
       folders.push(folder);
     } else if (includesExtentions(folderPath, imgTypes)) {
       imageLib.dropped.push(folderPath);
+      const currentImg = {
+        folderPath, file: '', imgPath: folderPath, index: 0,
+      };
+      imgInfo[folderPath] = currentImg;
     }
   });
   Promise.all(folders)

@@ -39,18 +39,6 @@ function DropArea(props) {
       onDragOver={stop}
       onDragEnter={stop}
       onDragLeave={stop}
-      onMouseOver={(e) => {
-        stop(e);
-        showClose(true);
-      }}
-      onMouseLeave={(e) => {
-        stop(e);
-        showClose(false);
-      }}
-      onFocus={(e) => {
-        stop(e);
-        showClose(true);
-      }}
     >
       <h3 className="dropTitle">{title}</h3>
       {' '}
@@ -60,7 +48,21 @@ function DropArea(props) {
             Object.entries(files).map((folder) => (
               <li>
                 <div className="droppedFolderTitleBG">
-                  <div className="droppedFolderTitle">
+                  <div
+                    onMouseOver={(e) => {
+                      stop(e);
+                      showClose(true);
+                    }}
+                    onMouseLeave={(e) => {
+                      stop(e);
+                      showClose(false);
+                    }}
+                    onFocus={(e) => {
+                      stop(e);
+                      showClose(true);
+                    }}
+                    className="droppedFolderTitle"
+                  >
                     {folder[0].split('/').pop()}
                     {close
                       ? (<button type="button" onClick={() => removeFolder(folder)} className="closeXBeatFolder">X</button>)
