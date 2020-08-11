@@ -11,16 +11,17 @@ const stop = (e) => {
 };
 
 const filterFrontElements = (e, id, cb) => {
-  if (e.target.id === id || !['modal', 'modalTitle', 'file', 'trackInput', 'closeX'].includes(e.target.className)) {
+  if (e.target.id === id || !['modal', 'modalTitle', 'file', 'trackInput', 'closeX', 'closeXBeatFolder', 'droppedFolderTitle'].includes(e.target.className)) {
     cb(e);
   }
 };
 
 function DropArea(props) {
   const {
-    handleDrop, selectFiles, id, title, info, updateTrack, removeTrack,
+    handleDrop, selectFiles, id, title, info, updateTrack, removeTrack, removeFolder,
   } = props;
   const [files, setFiles] = useState([]);
+  const [close, showClose] = useState(false);
   useEffect(() => {
     setFiles(info.lib);
   });
@@ -38,6 +39,18 @@ function DropArea(props) {
       onDragOver={stop}
       onDragEnter={stop}
       onDragLeave={stop}
+      onMouseOver={(e) => {
+        stop(e);
+        showClose(true);
+      }}
+      onMouseLeave={(e) => {
+        stop(e);
+        showClose(false);
+      }}
+      onFocus={(e) => {
+        stop(e);
+        showClose(true);
+      }}
     >
       <h3 className="dropTitle">{title}</h3>
       {' '}
@@ -47,7 +60,12 @@ function DropArea(props) {
             Object.entries(files).map((folder) => (
               <li>
                 <div className="droppedFolderTitleBG">
-                  <p className="droppedFolderTitle">{folder[0].split('/').pop()}</p>
+                  <div className="droppedFolderTitle">
+                    {folder[0].split('/').pop()}
+                    {close
+                      ? (<button type="button" onClick={() => removeFolder(folder)} className="closeXBeatFolder">X</button>)
+                      : (<button type="button" onClick={() => removeFolder(folder)} className="closeXInvisibleBeatFolder">X</button>)}
+                  </div>
                 </div>
                 {folder[1]
                   .map((file) => (

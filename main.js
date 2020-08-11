@@ -82,7 +82,7 @@ ipc.on('process-file-selection', (event, data) => {
       });
       Object.keys(lib).forEach((key) => {
         lib[key] = lib[key].map((track, index) => {
-          const [beatName, bpmkey] = track.split(' (prod. barlitxs) ');
+          const [beatName, bpmkey] = track.toLowerCase().split(' (prod. barlitxs) ');
           const [bpm, scale] = bpmkey ? bpmkey.split(' bpm ') : [null, null];
           const currTrackInf = {
             path: key, file: track, beatName, bpm, key: scale, trackPath: `${key}/${track}`, index,
@@ -91,7 +91,6 @@ ipc.on('process-file-selection', (event, data) => {
           return currTrackInf;
         });
       });
-      console.log('sending');
       event
         .sender
         .send('processed-files', JSON.stringify({

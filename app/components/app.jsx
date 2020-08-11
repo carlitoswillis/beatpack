@@ -91,7 +91,22 @@ function App({ data }) {
         x.index = index;
         return x;
       });
+      updatedInfo.files.projects = Object.values(updatedInfo.lib).reduce((a, b) => a.concat(b), []);
       if (!updatedInfo.lib[track.path].length) delete updatedInfo.lib[track.path];
+      return updatedInfo;
+    });
+  };
+
+  const removeFolder = (folder) => {
+    updateInfo((prevInfo) => {
+      const updatedInfo = { ...prevInfo };
+      Object.keys(updatedInfo.trackInfo).forEach((key) => {
+        if (key.includes(folder[0])) {
+          delete updatedInfo.trackInfo[key];
+        }
+      });
+      delete updatedInfo.lib[folder[0]];
+      updatedInfo.files.projects = Object.values(updatedInfo.lib).reduce((a, b) => a.concat(b), []);
       return updatedInfo;
     });
   };
@@ -133,7 +148,7 @@ function App({ data }) {
         <button className="startButton" type="button"> Start </button>
       </div>
       <div className="container">
-        <DropArea handleDrop={handleDrop} updateTrack={updateTrack} removeTrack={removeTrack} selectFiles={selectFiles} id="projects" title="Projects" info={info} />
+        <DropArea handleDrop={handleDrop} updateTrack={updateTrack} removeFolder={removeFolder} removeTrack={removeTrack} selectFiles={selectFiles} id="projects" title="Projects" info={info} />
         <ImageDropArea
           handleImageDrop={handleImageDrop}
           handleImageSelect={handleImageSelect}

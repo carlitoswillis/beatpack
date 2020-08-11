@@ -249,6 +249,15 @@ ul {
   cursor: pointer;
 }
 
+/* .folderThing {
+  display: grid;
+  color: rgb(190, 222, 250);
+  text-align: left;
+  margin: 20px auto;
+  border-bottom: 1px solid cadetblue;
+  cursor: pointer;
+} */
+
 .dropTitle {
   font-family: 'SF Pro';
   font-size: 1.4em;
@@ -266,7 +275,7 @@ ul {
 }
 
 .droppedFolderTitle {
-  margin: 0;
+  margin: 0 auto;
   margin-bottom: 20px;
   padding: 5px 0;
   font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
@@ -349,6 +358,27 @@ ul {
   color: rgb(78, 116, 150);
   border: none;
   border-radius: 10px;
+}
+
+.closeXBeatFolder {
+  z-index: 2;
+  margin: auto;
+  background-color: rgb(32, 48, 62);
+  color: rgb(190, 222, 250);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: right;
+}
+
+.closeXInvisibleBeatFolder {
+  z-index: 2;
+  margin: auto;
+  background-color: rgb(32, 48, 62);;
+  color: rgb(32, 48, 62);
+  border: none;
+  border-radius: 10px;
+  text-align: right;
 }
 
 .startButton {
