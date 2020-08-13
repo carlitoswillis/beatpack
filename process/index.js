@@ -1,8 +1,9 @@
+/* eslint-disable import/no-dynamic-require */
 /* eslint-disable no-console */
 /* eslint-disable no-param-reassign */
-const {
-  sanitize, asyncMap,
-} = require('./imports');
+const path = require('path');
+
+const { asyncMap } = require(path.resolve(__dirname, 'imports'));
 
 const handleSingle = (info, callback) => {
   console.log(`starting ${info.name}`);
@@ -25,7 +26,6 @@ const handleFolder = (info, callback) => {
   });
 };
 
-module.exports = (info, callback) => {
-  sanitize(info);
-  handleFolder(info, callback);
+module.exports = (data, callback) => {
+  handleSingle(data, callback);
 };

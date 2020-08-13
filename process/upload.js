@@ -1,10 +1,12 @@
+/* eslint-disable import/no-dynamic-require */
 /* eslint-disable no-shadow */
 /* eslint-disable no-console */
 const fs = require('fs');
+const path = require('path');
 const { google } = require('googleapis');
 
-const { oAuth2Client } = require('../youtube/auth');
-const { tokens } = require('../youtube/tokens');
+const { oAuth2Client } = require(path.resolve(__dirname, '..', 'youtube', 'auth'));
+const { tokens } = require(path.resolve(__dirname, '..', 'youtube', 'tokens'));
 
 oAuth2Client.setCredentials(tokens);
 

@@ -1,8 +1,12 @@
+/* eslint-disable import/no-dynamic-require */
 /* eslint-disable no-shadow */
 /* eslint-disable no-console */
 const fs = require('fs');
+const path = require('path');
+
 const { google } = require('googleapis');
-const OAuth2Data = require('./credentials.json');
+
+const OAuth2Data = require(path.resolve(__dirname, 'credentials.json'));
 
 const CLIENT_ID = OAuth2Data.web.client_id;
 const CLIENT_SECRET = OAuth2Data.web.client_secret;

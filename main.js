@@ -1,13 +1,19 @@
+/* eslint-disable import/no-dynamic-require */
 const electron = require('electron');
 const path = require('path');
 const url = require('url');
 const fs = require('fs');
+const unhandled = require('electron-unhandled');
+
+unhandled();
 
 const fsPromises = fs.promises;
+const taskHandler = require(path.resolve(__dirname, 'process'));
+const sanitize = require(path.resolve(__dirname, 'process', 'sanitize'));
 
 const ipc = electron.ipcMain;
 const { app, BrowserWindow } = electron;
-require('electron-reload')(__dirname);
+// require('electron-reload')(__dirname);
 
 let mainWindow;
 
@@ -25,7 +31,7 @@ function createWindow() {
     // frame: false,
   });
   mainWindow.loadURL(url.format({
-    pathname: path.join(__dirname, './public/beatpack.html'),
+    pathname: path.resolve(__dirname, 'index.html'),
     protocol: 'file:',
     slashes: true,
   }));
@@ -48,15 +54,8 @@ app.on('activate', () => {
   }
 });
 
-ipc.on('start-processing', (event, info) => {
-  event.sender.send('received-message', info);
-  console.log(info);
-});
-
 const extensions = ['.zip', '.mp4', '.mp3', '.jpg', '.png', '.wav', '.rtf', '.md'];
-const includesExtentions = (item, col = extensions) => {
-  return col.map((x) => item.includes(x)).reduce((x, y) => x || y, false);
-};
+const includesExtentions = (item, col = extensions) => col.map((x) => item.includes(x)).reduce((x, y) => x || y, false);
 
 /* takes files, tries to clean up folders where stems are placed
 and then organizes them into data structures for front end */
@@ -87,7 +86,7 @@ ipc.on('process-file-selection', (event, data) => {
           const currTrackInf = {
             path: key, file: track, beatName, bpm, key: scale, trackPath: `${key}/${track}`, index,
           };
-          trackInfo[`${key}/${track}`] = currTrackInf;
+          trackInfo[currTrackInf.trackPath] = currTrackInf;
           return currTrackInf;
         });
       });
@@ -140,7 +139,44 @@ ipc.on('process-image-selection', (event, data) => {
       event
         .sender
         .send('processed-images', JSON.stringify({
-          id, files: Object.values(imageLib).reduce((a, b) => a.concat(b), []), imageLib, imgInfo,
+          id, files: Object.keys(imgInfo).reduce((a, b) => a.concat(b), []), imageLib, imgInfo,
         }));
     });
+});
+
+ipc.on('start', (event, data) => {
+  console.log('starting');
+  const parsedData = JSON.parse(data);
+  const { projects } = parsedData.files;
+  parsedData.files.projects = null;
+  const run = () => {
+    console.log('running run');
+    if (projects.length) {
+      const beat = projects.pop();
+      let info = { ...parsedData, ...beat };
+      info = sanitize(info);
+      taskHandler(info, () => {
+        event
+          .sender
+          .send('finished-track', JSON.stringify({ ...beat, done: true }));
+        run();
+      });
+    } else {
+      console.log('done running run');
+    }
+  };
+  run();
+});
+ipc.on('save', (event, data) => {
+  fs.writeFile('./settings/info.json', data, (err) => {
+    if (err) throw err;
+    event
+      .sender
+      .send('saved', JSON.stringify({ ...data, lastSaved: new Date() }));
+  });
+});
+ipc.on('reset', (event) => {
+  event
+    .sender
+    .send('reseted', fs.readFileSync('./settings/default.json').toString());
 });

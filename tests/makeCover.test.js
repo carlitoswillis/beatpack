@@ -1,4 +1,7 @@
-const sanitize = require('../server/process/sanitize');
+/* eslint-disable import/no-dynamic-require */
+const path = require('path');
+
+const sanitize = require(path.resolve(__dirname, '..', 'server', 'process', 'sanitize'));
 const makeCover = require('../server/process/makeCover');
 const testInfo = require('./testInfo');
 

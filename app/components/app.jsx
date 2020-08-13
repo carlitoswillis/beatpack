@@ -1,16 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DropArea from './droparea';
 import CheckBoxes from './checkboxes';
 import ImageDropArea from './imagedroparea';
 import InputArea from './inputarea';
 
+const unhandled = require('electron-unhandled');
+
+unhandled();
+
+const fs = require('fs');
 const { dialog } = require('electron').remote;
 const electron = require('electron');
 
 const ipc = electron.ipcRenderer;
 
-function App({ data }) {
-  const [info, updateInfo] = useState(data);
+const Saved = ({ status }) => {
+  const [saved, showSaved] = useState(status);
+
+  return (
+    <div>
+      {saved
+        ? (
+          <div className="savedModal">
+            <img className="saved" src="/Users/carlitoswillis/local/programming/beatpack/assets/giphy.gif" />
+          </div>
+        )
+        : (
+          <div className="savedModal inv">
+            <img className="saved" src="/Users/carlitoswillis/local/programming/beatpack/assets/giphy.gif" />
+          </div>
+        )}
+    </div>
+  );
+};
+
+function App() {
+  // const [info, updateInfo] = useState(JSON.parse(fs.readFileSync('./settings/info.json')));
+  const [info, updateInfo] = useState({
+    single: true, type: '', mp3: true, mp4: true, zip: true, upload: false, outputPath: '/Users/carlitoswillis/Google Drive (carlitoswillis@berkeley.edu)/Track Outs/processed', files: { images: [], projects: [] }, delete: false, art: true, done: 0,
+  });
 
   const loadFiles = (processedData) => {
     const {
@@ -46,12 +74,41 @@ function App({ data }) {
     });
   };
 
+  const handleSaved = (processedData) => {
+    updateInfo({ ...processedData });
+  };
+
   useState(() => {
     ipc.on('processed-files', (event, processedData) => {
       loadFiles(JSON.parse(processedData));
     });
     ipc.on('processed-images', (event, processedData) => {
       loadImages(JSON.parse(processedData));
+    });
+    ipc.on('saved', (event, processedData) => {
+      handleSaved(JSON.parse(processedData));
+    });
+    ipc.on('reseted', (event, processedData) => {
+      handleSaved(JSON.parse(processedData));
+    });
+    ipc.on('finished-track', (event, processedData) => {
+      console.log('finished a track');
+      updateInfo((prevInfo) => {
+        const updatedInfo = { ...prevInfo };
+        const track = JSON.parse(processedData);
+        updatedInfo.lib[track.path][track.index] = track;
+        updatedInfo.trackInfo[track.trackpath] = track;
+        updatedInfo.done += 1;
+        // if (updatedInfo.done < updatedInfo.files.projects.length) {
+        updatedInfo.files.projects = Object.values(updatedInfo.lib)
+          .reduce((a, b) => a.concat(b), []);
+        if (updatedInfo.done === updatedInfo.files.projects.length) {
+          console.log('should be done');
+          updatedInfo.going = false;
+          return updatedInfo;
+        }
+        return updatedInfo;
+      });
     });
   });
 
@@ -135,6 +192,8 @@ function App({ data }) {
       });
   };
   const inputHandler = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     const updatedInfo = { ...info };
     updatedInfo[e.target.id] = e.target.value;
     updateInfo(updatedInfo);
@@ -150,17 +209,27 @@ function App({ data }) {
         x.index = index;
         return x;
       });
-      updatedInfo.files.images = Object.values(updatedInfo.imgInfo).reduce((a, b) => a.concat(b), []);
+      updatedInfo.files.images = Object.values(updatedInfo.imgInfo)
+        .reduce((a, b) => a.concat(b), []);
       return updatedInfo;
     });
   };
 
+  const buttonHandler = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    ipc.send(e.target.id, JSON.stringify({ ...info }));
+  };
+
   return (
     <div onClick={() => console.log(info)}>
+      {/* <Saved status={info.saved || false} /> */}
       <div className="titleBG">
         {/* <h1 className="beatpackTitle">Beatpack</h1> */}
         <CheckBoxes handleCheck={handleCheck} info={info} />
-        <button className="startButton" type="button"> Start </button>
+        <button onClick={(e) => buttonHandler(e)} className="resetButton" id="reset" type="button">Reset</button>
+        <button onClick={(e) => buttonHandler(e)} className="saveButton" id="save" type="button">Save</button>
+        <button onClick={(e) => buttonHandler(e)} className="startButton" id="start" type="button">Start</button>
       </div>
       <div className="container">
         <DropArea handleDrop={handleDrop} updateTrack={updateTrack} removeFolder={removeFolder} removeTrack={removeTrack} selectFiles={selectFiles} id="projects" title="Projects" info={info} />

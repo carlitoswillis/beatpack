@@ -171,6 +171,7 @@ module.exports = (info, callback) => {
   const [red, green, blue] = [randomcolor(), randomcolor(), randomcolor()];
   const colorsnumber = getRndInteger(3, 20);
   const colorsArr = colors();
+  console.log(imagePath)
   const dimensions = sizeOf(imagePath);
   composeThumbnail({
     folderPath, imagePath, measure, type, colorsnumber, red, green, blue, colorsArr,
