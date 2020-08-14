@@ -43,7 +43,7 @@ function Project({
         )
         : (<></>)}
       <div onClick={(e) => {
-        if (e.target.className === 'file') toggleModal(!shown);
+        if (e.target.className === 'file' || e.target.className === 'filedone') toggleModal(!shown);
       }}
       >
         {done

@@ -172,7 +172,7 @@ ipc.on('save', (event, data) => {
     if (err) throw err;
     event
       .sender
-      .send('saved', JSON.stringify({ ...data, lastSaved: new Date() }));
+      .send('saved', JSON.stringify({ ...JSON.parse(data), lastSaved: new Date() }));
   });
 });
 ipc.on('reset', (event) => {

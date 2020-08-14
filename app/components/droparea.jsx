@@ -11,7 +11,7 @@ const stop = (e) => {
 };
 
 const filterFrontElements = (e, id, cb) => {
-  if (e.target.id === id || !['modal', 'modalTitle', 'file', 'trackInput', 'closeX', 'closeXBeatFolder', 'droppedFolderTitle'].includes(e.target.className)) {
+  if (e.target.id === id || !['modal', 'modalTitle', 'file', 'filedone', 'trackInput', 'closeX', 'closeXBeatFolder', 'droppedFolderTitle'].includes(e.target.className)) {
     cb(e);
   }
 };

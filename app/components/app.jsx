@@ -4,11 +4,12 @@ import CheckBoxes from './checkboxes';
 import ImageDropArea from './imagedroparea';
 import InputArea from './inputarea';
 
+const fs = require('fs');
+const path = require('path');
 const unhandled = require('electron-unhandled');
 
 unhandled();
 
-const fs = require('fs');
 const { dialog } = require('electron').remote;
 const electron = require('electron');
 
@@ -35,10 +36,10 @@ const Saved = ({ status }) => {
 };
 
 function App() {
-  // const [info, updateInfo] = useState(JSON.parse(fs.readFileSync('./settings/info.json')));
-  const [info, updateInfo] = useState({
-    single: true, type: '', mp3: true, mp4: true, zip: true, upload: false, outputPath: '/Users/carlitoswillis/Google Drive (carlitoswillis@berkeley.edu)/Track Outs/processed', files: { images: [], projects: [] }, delete: false, art: true, done: 0,
-  });
+  const [info, updateInfo] = useState(JSON.parse(fs.readFileSync(path.resolve('settings', 'info.json'))));
+  // const [info, updateInfo] = useState({
+  //   single: true, type: '', mp3: true, mp4: true, zip: true, upload: false, outputPath: '/Users/carlitoswillis/Google Drive (carlitoswillis@berkeley.edu)/Track Outs/processed', files: { images: [], projects: [] }, delete: false, art: true, done: 0,
+  // });
 
   const loadFiles = (processedData) => {
     const {
