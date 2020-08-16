@@ -1,7 +1,9 @@
 /* eslint-disable no-undef */
-const sanitize = require('../server/process/sanitize');
-const ffmpeg = require('../server/process/ffmpeg');
-const testInfo = require('./testInfo');
+const ffmpeg = require('../process/ffmpeg');
+const sanitize = require('../process/sanitize');
+const testInfo = require('../settings/info');
+
+let info = { ...testInfo, ...testInfo.files.projects[0] };
 
 let single;
 let bulk;
@@ -9,12 +11,12 @@ let bulk;
 jest.setTimeout.Timeout = 100000000;
 
 beforeEach(() => {
-  single = sanitize(testInfo());
-  bulk = sanitize(testInfo(true));
+  single = sanitize(info);
+  // bulk = sanitize(testInfo(true));
 });
 
 describe('take fullscreen image and mp3 file to create video', () => {
-  test('the data is processed', (done) => {
+  xtest('the data is processed', (done) => {
     jest.setTimeout(10 ** 5);
     function callback() {
       try {

@@ -23,7 +23,8 @@
 .dropArea2 {
   height: 100vh;
   width: 300px;
-  background-color: rgb(182, 64, 64);
+  /* background-color: rgb(182, 64, 64); */
+  background-color: rgb(169, 215, 255);
   overflow: scroll;
 }
 
@@ -40,7 +41,8 @@
   background-color: rgb(78, 116, 150);
 }
 .grayArea2 {
-  background-color: rgb(189, 120, 120);
+  /* background-color: rgb(189, 120, 120); */
+  background-color: rgb(78, 116, 150);
 }
 .dropLabel {
   font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
@@ -262,7 +264,8 @@ ul {
   margin: 20px auto;
   padding: 9px 5px;
   cursor: pointer;
-  background-color: rgb(111, 0, 0);
+  /* background-color: rgb(111, 0, 0); */
+  background-color: rgb(87, 25, 25);
 }
 
 .filedone {
@@ -273,7 +276,8 @@ ul {
   margin: 20px auto;
   padding: 9px 5px;
   cursor: pointer;
-  background-color: rgb(0, 114, 97);
+  /* background-color: rgb(0, 114, 97); */
+  background-color:rgb(28, 92, 99);
 }
 
 /* .folderThing {
@@ -367,6 +371,7 @@ ul {
   margin: 80px auto;
   color: white;
   background-color: rgb(130, 44, 44);
+  background-color: rgb(32, 48, 62);
   padding: 200px 0;
 }
 
@@ -569,3 +574,31 @@ button:focus {
   display: none;
 }
 
+
+@import
+  url('https://dosputin.github.io/HD44780_LCD_webfont/hd44780.css');
+
+svg {
+  display: grid;
+  height: 100%;
+  width: 100%;
+  margin: 0 auto;
+  /* transform: translate(-50%, -50%); */
+  }
+text {
+  text-shadow:
+    0 0 25px #3fb4f6,
+    0 0 5px #3fb4f6;
+}
+
+.lcdHolder {
+  /* display: grid; */
+  position: absolute;
+  /* top: -1px; */
+  bottom: 0;
+  right: 0;
+  width: 301px;
+  z-index: 3;
+  margin: 0;
+  padding: 0;
+}

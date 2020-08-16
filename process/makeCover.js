@@ -63,14 +63,42 @@ function composeCoverArt({
     .colorize(red, green, blue)
     .write(`${folderPath}/cropped.jpg`, function (err) {
       if (err) return console.dir(arguments);
-      console.log('Cropped image for cover art');
+      // console.log('Cropped image for cover art');
       return gm(`${folderPath}/cropped.jpg`)
         .composite('/Users/carlitoswillis/Documents/brand graphics/cmd logo/barlogocover.png')
         .write(`${outputPath}/${name} cover.jpg`, (err) => {
           if (err) throw err;
-          console.log('Finished cover art');
+          // console.log('Finished cover art');
           callback(null);
         });
+    });
+}
+
+function composeCoverArtTransparency({
+  beatName, bpm, key, outputPath, name,
+}, callback) {
+  return gm('/Users/carlitoswillis/Documents/brand graphics/cmd logo/barlogocover.png')
+    .gravity('North')
+    .fontSize(36)
+    .fill('black')
+    .gravity('NorthEast')
+    .drawText(60, 270, beatName)
+    .fontSize(24)
+    .drawText(60, 310, `${bpm} bpm`)
+    .drawText(60, 340, key)
+    .drawText(60, 370, 'prod. barlitxs')
+    .fill('white')
+    .fontSize(36)
+    .drawText(60, 100, beatName)
+    .fontSize(24)
+    .drawText(60, 140, `${bpm} bpm`)
+    .drawText(60, 170, key)
+    .drawText(60, 200, 'prod. barlitxs')
+    .gravity('South')
+    .write(`${outputPath}/${name} cover2.png`, (err) => {
+      if (err) throw err;
+      // console.log('Finished transparent art');
+      callback(null);
     });
 }
 
@@ -108,12 +136,12 @@ function composeFullScreenArt({
     .extent(1920, 1080)
     .write(`${folderPath}/fullscreen.jpg`, function (err) {
       if (err) return console.dir(arguments);
-      console.log('finished fullscreen image for video');
+      // console.log('finished fullscreen image for video');
       return gm(`${folderPath}/fullscreen.jpg`)
         .composite('/Users/carlitoswillis/Documents/brand graphics/whitebarlogoFS.png')
         .write(`${folderPath}/fullscreen.jpg`, function (err) {
           if (err) return console.dir(arguments);
-          console.log('Added logo to fullscreen');
+          // console.log('Added logo to fullscreen');
           callback(null);
         });
     });
@@ -134,7 +162,7 @@ function composeThumbnail({
     .border(20, 20)
     .write(`${folderPath}/bordered.jpg`, function (err) {
       if (err) return console.dir(arguments);
-      console.log('cropped for thumbnail and added border');
+      // console.log('cropped for thumbnail and added border');
       return gm('/Users/carlitoswillis/Documents/graphic sources/typebeat.png')
         .gravity('North')
         .background(`rgb(${colorsArr})`)
@@ -150,13 +178,13 @@ function composeThumbnail({
         .drawText(-3, measure('Type Beat') * 1.03, type)
         .write(`${folderPath}/text.jpg`, (err) => {
           if (err) return console.dir(arguments);
-          console.log('created text image for thumbnail');
+          // console.log('created text image for thumbnail');
           return gm(`${folderPath}/text.jpg`)
             .append(`${folderPath}/bordered.jpg`, true)
             .noise('laplacian')
             .write(`${folderPath}/thumb.jpg`, function (err) {
               if (err) return console.dir(arguments);
-              console.log('finished thumbnail');
+              // console.log('finished thumbnail');
               callback(null);
             });
         });
@@ -171,18 +199,26 @@ module.exports = (info, callback) => {
   const [red, green, blue] = [randomcolor(), randomcolor(), randomcolor()];
   const colorsnumber = getRndInteger(3, 20);
   const colorsArr = colors();
-  console.log(imagePath)
   const dimensions = sizeOf(imagePath);
   composeThumbnail({
     folderPath, imagePath, measure, type, colorsnumber, red, green, blue, colorsArr,
   }, () => {
+    info.event.sender.send('working', 'made thumbnail');
     composeFullScreenArt({
       imagePath, folderPath, dimensions, beatName, bpm, key, colorsnumber, red, green, blue,
     }, () => {
       composeCoverArt({
+        // make transparent cover for video stuff
         folderPath, imagePath, dimensions, colorsnumber, beatName, bpm, key, red, green, blue, outputPath, name,
       }, () => {
-        callback(null);
+        info.event.sender.send('working', 'made full screen cover');
+        composeCoverArtTransparency({
+          // make transparent cover for video stuff
+          beatName, bpm, key, outputPath, name,
+        }, () => {
+          info.event.sender.send('working', 'made transparent cover art with logo');
+          callback(null);
+        });
       });
     });
   });

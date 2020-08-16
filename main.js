@@ -19,9 +19,9 @@ let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    minWidth: 600,
-    maxWidth: 900,
+    minWidth: 900,
     minHeight: 600,
+    maxWidth: 1200,
     maxHeight: 700,
     webPreferences: {
       nodeIntegration: true,
@@ -115,7 +115,7 @@ ipc.on('process-image-selection', (event, data) => {
     } else if (includesExtentions(folderPath, imgTypes)) {
       imageLib.dropped.push(folderPath);
       const currentImg = {
-        folderPath, file: '', imgPath: folderPath, index: 0,
+        folderPath, file: '', imgPath: folderPath, index: 0, path: 'dropped',
       };
       imgInfo[folderPath] = currentImg;
     }
@@ -144,25 +144,70 @@ ipc.on('process-image-selection', (event, data) => {
     });
 });
 
+const vidTypes = ['.mov', '.avi', '.mp4', '.mkv'];
+// takes images and prepares then to be displayed
+ipc.on('process-video-selection', (event, data) => {
+  const { videoPaths } = JSON.parse(data);
+  const id = 'videos';
+  const paths = [];
+  const folders = [];
+  const vidLib = { dropped: [] };
+  const vidInfo = {};
+  videoPaths.forEach((folderPath) => {
+    if (fs.lstatSync(folderPath).isDirectory()) {
+      const folder = fsPromises.readdir(folderPath);
+      paths.push(folderPath);
+      folders.push(folder);
+    } else if (includesExtentions(folderPath, vidTypes)) {
+      vidLib.dropped.push(folderPath);
+      const currentVid = {
+        folderPath, file: '', videoPath: folderPath, index: 0, path: 'dropped',
+      };
+      vidInfo[folderPath] = currentVid;
+    }
+  });
+  Promise.all(folders)
+    .then((values) => {
+      paths.forEach((name) => {
+        vidLib[name] = [];
+      });
+      values.forEach((val, index) => {
+        val.forEach((name) => {
+          if (name[0] !== '.' && name !== 'Icon\r' && includesExtentions(name, vidTypes)) {
+            vidLib[paths[index]].push(name);
+            const currentVid = {
+              path: paths[index], file: name, videoPath: `${paths[index]}/${name}`, index,
+            };
+            vidInfo[`${paths[index]}/${name}`] = currentVid;
+          }
+        });
+      });
+      event
+        .sender
+        .send('processed-videos', JSON.stringify({
+          id, files: Object.keys(vidInfo).reduce((a, b) => a.concat(b), []), vidLib, vidInfo,
+        }));
+    });
+});
+
 ipc.on('start', (event, data) => {
-  console.log('starting');
   const parsedData = JSON.parse(data);
   const { projects } = parsedData.files;
   parsedData.files.projects = null;
   const run = () => {
-    console.log('running run');
     if (projects.length) {
       const beat = projects.pop();
-      let info = { ...parsedData, ...beat };
+      let info = { ...parsedData, ...beat, event };
       info = sanitize(info);
+      event
+        .sender
+        .send('starting-track', beat.beatName);
       taskHandler(info, () => {
         event
           .sender
           .send('finished-track', JSON.stringify({ ...beat, done: true }));
         run();
       });
-    } else {
-      console.log('done running run');
     }
   };
   run();

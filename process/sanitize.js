@@ -10,19 +10,32 @@ const ops = {
   mp3, zip, art, mp4, upload, cleanUp,
 };
 
-const nextImage = (info) => {
-  let count = 0;
-  const cap = info.files.images.length;
-  return function () {
-    count += 1;
-    return info.images[count % cap];
-  };
-};
+// const nextImage = (info) => {
+//   let count = -1;
+//   const cap = info.files.images.length;
+//   return function () {
+//     count += 1;
+//     return info.files.images[count % cap];
+//   };
+// };
+
+// const nextVideo = (info) => {
+//   let count = -1;
+//   const cap = info.files.videos.length;
+//   return function () {
+//     count += 1;
+//     return info.files.videos[count % cap];
+//   };
+// };
 
 const sanitize = (info) => {
   info.folderPath = info.trackPath;
-  info.nextImage = nextImage(info);
+  // info.nextImage = nextImage(info);
+  // info.nextVideo = nextVideo(info);
+  // info.imagePath = info.nextImage();
+  // info.vidPath = info.nextVideo();
   info.imagePath = info.files.images[Math.floor(Math.random() * Math.floor(info.files.images.length))];
+  info.vidPath = info.files.videos[Math.floor(Math.random() * Math.floor(info.files.videos.length))];
   info.tasks = ['mp3', 'zip', 'art', 'mp4', 'upload', 'cleanUp']
     .filter((x) => Object.keys(info)
       .includes(x) && info[x])

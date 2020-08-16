@@ -2,18 +2,29 @@ import React, { useState, useEffect } from 'react';
 import DropArea from './droparea';
 import CheckBoxes from './checkboxes';
 import ImageDropArea from './imagedroparea';
+import VideoDropArea from './videodroparea';
 import InputArea from './inputarea';
+import LCD from './lcd';
 
 const fs = require('fs');
 const path = require('path');
-const unhandled = require('electron-unhandled');
-
-unhandled();
 
 const { dialog } = require('electron').remote;
 const electron = require('electron');
 
 const ipc = electron.ipcRenderer;
+
+const lcdAlignCenter = (text, size = 16) => {
+  text = text.substr(0, size);
+  const p = new Array(((size - text.length) / 2) | 0).fill(' ').join('');
+  return `${p}${text}${p}`;
+};
+
+const lcdAlignRight = (text, size = 16) => {
+  text = text.substr(0, size);
+  const p = new Array(((size - text.length)) | 0).fill(' ').join('');
+  return `${p}${text}`;
+};
 
 const Saved = ({ status }) => {
   const [saved, showSaved] = useState(status);
@@ -75,6 +86,19 @@ function App() {
     });
   };
 
+  const loadVideos = (processedData) => {
+    const {
+      id, files, vidLib, vidInfo,
+    } = processedData;
+    updateInfo((prevInfo) => {
+      const updatedInfo = { ...prevInfo };
+      updatedInfo.files[id] = Array.from(new Set([...updatedInfo.files[id], ...files]));
+      updatedInfo.vidLib = { ...updatedInfo.vidLib, ...vidLib };
+      updatedInfo.vidInfo = { ...vidInfo, ...updatedInfo.vidInfo };
+      return updatedInfo;
+    });
+  };
+
   const handleSaved = (processedData) => {
     updateInfo({ ...processedData });
   };
@@ -86,6 +110,9 @@ function App() {
     ipc.on('processed-images', (event, processedData) => {
       loadImages(JSON.parse(processedData));
     });
+    ipc.on('processed-videos', (event, processedData) => {
+      loadVideos(JSON.parse(processedData));
+    });
     ipc.on('saved', (event, processedData) => {
       handleSaved(JSON.parse(processedData));
     });
@@ -93,9 +120,9 @@ function App() {
       handleSaved(JSON.parse(processedData));
     });
     ipc.on('finished-track', (event, processedData) => {
-      console.log('finished a track');
       updateInfo((prevInfo) => {
         const updatedInfo = { ...prevInfo };
+        updatedInfo.message = 'finished track!';
         const track = JSON.parse(processedData);
         updatedInfo.lib[track.path][track.index] = track;
         updatedInfo.trackInfo[track.trackpath] = track;
@@ -104,10 +131,34 @@ function App() {
         updatedInfo.files.projects = Object.values(updatedInfo.lib)
           .reduce((a, b) => a.concat(b), []);
         if (updatedInfo.done === updatedInfo.files.projects.length) {
-          console.log('should be done');
+          updatedInfo.message = 'finished all tracks!';
           updatedInfo.going = false;
           return updatedInfo;
         }
+        return updatedInfo;
+      });
+    });
+    ipc.on('starting-track', (event, track) => {
+      updateInfo((prevInfo) => {
+        const updatedInfo = { ...prevInfo, track };
+        return updatedInfo;
+      });
+    });
+    ipc.on('finished-track-processing', (event, message) => {
+      updateInfo((prevInfo) => {
+        const updatedInfo = { ...prevInfo, message: `finished ${message}` };
+        return updatedInfo;
+      });
+    });
+    ipc.on('working', (event, message) => {
+      updateInfo((prevInfo) => {
+        const updatedInfo = { ...prevInfo, message: `${message}` };
+        return updatedInfo;
+      });
+    });
+    ipc.on('task-finished', (event, message) => {
+      updateInfo((prevInfo) => {
+        const updatedInfo = { ...prevInfo, message: `finished ${message}` };
         return updatedInfo;
       });
     });
@@ -201,7 +252,6 @@ function App() {
   };
 
   const removeImage = (img) => {
-    console.log(img);
     updateInfo((prevInfo) => {
       const updatedInfo = { ...prevInfo };
       delete updatedInfo.imgInfo[img.imgPath];
@@ -219,7 +269,41 @@ function App() {
   const buttonHandler = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    ipc.send(e.target.id, JSON.stringify({ ...info }));
+    const infoToProcess = { ...info };
+    if (e.target.id === 'start') {
+      infoToProcess.going = true;
+      updateInfo(infoToProcess);
+    }
+    console.log(infoToProcess);
+    ipc.send(e.target.id, JSON.stringify(infoToProcess));
+  };
+
+  const handleVidDrop = (e) => {
+    const videoPaths = Array.from(e.dataTransfer.files).map((file) => file.path);
+    ipc.send('process-video-selection', JSON.stringify({ id: 'videos', videoPaths }));
+  };
+  const handleVidSelect = (e) => {
+    dialog.showOpenDialog({ properties: ['openFile', 'openDirectory', 'multiSelections'] })
+      .then((result) => result)
+      .then((selection) => {
+        if (!selection.canceled) {
+          ipc.send('process-video-selection', JSON.stringify({ id: 'videos', videoPaths: selection.filePaths }));
+        }
+      });
+  };
+  const removeVid = (vid) => {
+    updateInfo((prevInfo) => {
+      const updatedInfo = { ...prevInfo };
+      delete updatedInfo.vidInfo[vid.videoPath];
+      updatedInfo.vidLib[vid.path].splice([vid.index]);
+      updatedInfo.vidLib[vid.path].map((x, index) => {
+        x.index = index;
+        return x;
+      });
+      updatedInfo.files.videos = Object.values(updatedInfo.vidInfo)
+        .reduce((a, b) => a.concat(b), []);
+      return updatedInfo;
+    });
   };
 
   return (
@@ -240,8 +324,22 @@ function App() {
           info={info}
           removeImage={removeImage}
         />
+        <VideoDropArea
+          handleVidDrop={handleVidDrop}
+          handleVidSelect={handleVidSelect}
+          info={info}
+          removeVid={removeVid}
+        />
         <InputArea info={info} inputHandler={inputHandler} />
       </div>
+      {info.going
+        ? (
+          <div className="lcdHolder">
+            {' '}
+            <LCD width="100%" line1={`${info.track}`} line2={lcdAlignCenter(`${info.message}`)} backlit />
+          </div>
+        )
+        : (<></>)}
     </div>
   );
 }

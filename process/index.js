@@ -6,10 +6,11 @@ const path = require('path');
 const { asyncMap } = require(path.resolve(__dirname, 'imports'));
 
 const handleSingle = (info, callback) => {
-  console.log(`starting ${info.name}`);
+  // console.log(`starting ${info.name}`);
   asyncMap(info, () => {
     callback();
-    console.log(`finished ${info.name}`);
+    info.event.sender.send('finished-track-processing', `${info.beatName} processed`);
+    // console.log(`finished ${info.name}`);
   });
 };
 
