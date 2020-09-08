@@ -1,4 +1,5 @@
 const { Lame } = require('node-lame');
+const fs = require('fs');
 
 module.exports = (info, callback) => {
   const { name, folderPath, outputPath } = info;
@@ -11,7 +12,9 @@ module.exports = (info, callback) => {
   encoder
     .encode()
     .then(() => {
-      callback(null);
+      fs.copyFile(`${outputPath}/${name}.mp3`, `${folderPath}/${name}.mp3`, () => {
+        callback(null);
+      });
     })
     .catch((error) => {
       console.error('something went wrong!', error);

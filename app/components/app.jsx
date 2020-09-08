@@ -179,14 +179,15 @@ function App() {
       });
   };
 
-  const updateTrack = (update) => {
+  const updateTrack = ({ updatedTrackInfo, file }) => {
     updateInfo((prevInfo) => {
       const updatedInfo = { ...prevInfo };
-      updatedInfo.trackInfo[update.trackPath] = {
+      updatedInfo.trackInfo[updatedTrackInfo.trackPath] = {
         ...updatedInfo
-          .trackInfo[update.trackPath],
-        ...update,
+          .trackInfo[updatedTrackInfo.trackPath],
+        ...updatedTrackInfo,
       };
+      updatedInfo.lib[file.path][file.index] = updatedTrackInfo;
       return updatedInfo;
     });
   };
@@ -274,7 +275,6 @@ function App() {
       infoToProcess.going = true;
       updateInfo(infoToProcess);
     }
-    console.log(infoToProcess);
     ipc.send(e.target.id, JSON.stringify(infoToProcess));
   };
 

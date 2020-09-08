@@ -47,25 +47,25 @@ function composeCoverArt({
     .fontSize(36)
     .fill('black')
     .gravity('NorthEast')
-    .drawText(60, 270, beatName)
+    .drawText(10, 270 - 60, beatName)
     .fontSize(24)
-    .drawText(60, 310, `${bpm} bpm`)
-    .drawText(60, 340, key)
-    .drawText(60, 370, 'prod. barlitxs')
+    .drawText(10, 310 - 60, `${bpm} bpm`)
+    .drawText(10, 340 - 60, key)
+    .drawText(10, 370 - 60, 'prod. barlitxs')
     .fill('white')
     .fontSize(36)
-    .drawText(60, 100, beatName)
+    .drawText(10, 100 - 60, beatName)
     .fontSize(24)
-    .drawText(60, 140, `${bpm} bpm`)
-    .drawText(60, 170, key)
-    .drawText(60, 200, 'prod. barlitxs')
+    .drawText(10, 140 - 60, `${bpm} bpm`)
+    .drawText(10, 170 - 60, key)
+    .drawText(10, 200 - 60, 'prod. barlitxs')
     .gravity('South')
     .colorize(red, green, blue)
     .write(`${folderPath}/cropped.jpg`, function (err) {
       if (err) return console.dir(arguments);
       // console.log('Cropped image for cover art');
       return gm(`${folderPath}/cropped.jpg`)
-        .composite('/Users/carlitoswillis/Documents/brand graphics/cmd logo/barlogocover.png')
+        .composite('/Users/carlitoswillis/Documents/brand graphics/cmd logo/barlogocover-01.png')
         .write(`${outputPath}/${name} cover.jpg`, (err) => {
           if (err) throw err;
           // console.log('Finished cover art');
@@ -75,30 +75,52 @@ function composeCoverArt({
 }
 
 function composeCoverArtTransparency({
-  beatName, bpm, key, outputPath, name,
+  beatName, bpm, key, outputPath, name, folderPath,
 }, callback) {
-  return gm('/Users/carlitoswillis/Documents/brand graphics/cmd logo/barlogocover.png')
+  return gm('/Users/carlitoswillis/Documents/brand graphics/cmd logo/barlogocover-01.png')
     .gravity('North')
     .fontSize(36)
     .fill('black')
     .gravity('NorthEast')
-    .drawText(60, 270, beatName)
+    .drawText(10, 270 - 60, beatName)
     .fontSize(24)
-    .drawText(60, 310, `${bpm} bpm`)
-    .drawText(60, 340, key)
-    .drawText(60, 370, 'prod. barlitxs')
+    .drawText(10, 310 - 60, `${bpm} bpm`)
+    .drawText(10, 340 - 60, key)
+    .drawText(10, 370 - 60, 'prod. barlitxs')
     .fill('white')
     .fontSize(36)
-    .drawText(60, 100, beatName)
+    .drawText(10, 100 - 60, beatName)
     .fontSize(24)
-    .drawText(60, 140, `${bpm} bpm`)
-    .drawText(60, 170, key)
-    .drawText(60, 200, 'prod. barlitxs')
+    .drawText(10, 140 - 60, `${bpm} bpm`)
+    .drawText(10, 170 - 60, key)
+    .drawText(10, 200 - 60, 'prod. barlitxs')
     .gravity('South')
     .write(`${outputPath}/${name} cover2.png`, (err) => {
       if (err) throw err;
       // console.log('Finished transparent art');
-      callback(null);
+      return gm('/Users/carlitoswillis/Documents/brand graphics/cmd logo/barlogocover2-01.png')
+        .gravity('North')
+        .fontSize(36)
+        .fill('black')
+        .gravity('NorthEast')
+        .drawText(10, 270 - 60, beatName)
+        .fontSize(24)
+        .drawText(10, 310 - 60, `${bpm} bpm`)
+        .drawText(10, 340 - 60, key)
+        .drawText(10, 370 - 60, 'prod. barlitxs')
+        .fill('white')
+        .fontSize(36)
+        .drawText(10, 100 - 60, beatName)
+        .fontSize(24)
+        .drawText(10, 140 - 60, `${bpm} bpm`)
+        .drawText(10, 170 - 60, key)
+        .drawText(10, 200 - 60, 'prod. barlitxs')
+        .gravity('South')
+        .write(`${folderPath}/${name} cover3.png`, (err) => {
+          if (err) throw err;
+          callback(null);
+          // console.log('Finished cover art');
+        });
     });
 }
 
@@ -214,7 +236,7 @@ module.exports = (info, callback) => {
         info.event.sender.send('working', 'made full screen cover');
         composeCoverArtTransparency({
           // make transparent cover for video stuff
-          beatName, bpm, key, outputPath, name,
+          beatName, bpm, key, outputPath, name, folderPath,
         }, () => {
           info.event.sender.send('working', 'made transparent cover art with logo');
           callback(null);

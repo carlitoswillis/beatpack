@@ -1,3 +1,5 @@
+/* eslint-disable jsx-a11y/click-events-have-key-events */
+/* eslint-disable jsx-a11y/no-static-element-interactions */
 import React, { useState, useEffect } from 'react';
 import Modal from './modal';
 
@@ -43,7 +45,7 @@ function Project({
         )
         : (<></>)}
       <div onClick={(e) => {
-        if (e.target.className === 'file' || e.target.className === 'filedone') toggleModal(!shown);
+        if (e.target.className === 'file' || e.target.className === 'filedone' || e.target.className === 'file missingData') toggleModal(!shown);
       }}
       >
         {done
@@ -59,7 +61,7 @@ function Project({
           )
           : (
             <div>
-              <li className="file">
+              <li className={`file${file.beatName && file.bpm && file.key ? '' : ' missingData'}`}>
                 {file.beatName}
                 {close
                   ? (<button type="button" onClick={() => removeTrack(file)} className="closeX">X</button>)

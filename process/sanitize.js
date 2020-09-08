@@ -29,6 +29,9 @@ const ops = {
 // };
 
 const sanitize = (info) => {
+  if (!info.event) {
+    info.event = { sender: { send: () => {} } };
+  }
   info.folderPath = info.trackPath;
   // info.nextImage = nextImage(info);
   // info.nextVideo = nextVideo(info);

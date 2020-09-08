@@ -18,6 +18,7 @@ function Modal({
     }
   };
   const handleSubmit = (e) => {
+    console.log('submitting');
     const updatedTrackInfo = {};
     Object.keys(trackInfo).forEach((key) => {
       if (trackInfo[key] !== '' && trackInfo[key]) {
@@ -26,7 +27,7 @@ function Modal({
     });
     e.preventDefault();
     e.stopPropagation();
-    updateTrack(updatedTrackInfo);
+    updateTrack({ updatedTrackInfo, file });
   };
   return (
     <div className="modal" onMouseLeave={(e) => { handleSubmit(e); toggleModal(); }}>

@@ -17,10 +17,11 @@ module.exports = (info, callback) => {
   function getRandomInt(max) {
     return Math.floor(Math.random() * Math.floor(max));
   }
-  getVideoDurationInSeconds(vidPath.videoPath).then((duration) => {
+  // console.log(vidPath, vidPath.videoPath);
+  getVideoDurationInSeconds(vidPath).then((duration) => {
     let seconds = 0;
     const chops = [];
-    while (seconds < 60) {
+    while (seconds < 75) {
       const start = Math.random();
       const end = getRandomInt(9);
       if ((start * duration + end) < duration) {
@@ -28,10 +29,10 @@ module.exports = (info, callback) => {
         seconds += end;
       }
     }
-    const commandOne = `ffmpeg -i "${vidPath.videoPath}" \
+    const commandOne = `ffmpeg -i "${vidPath}" \
     -vf "select='${chops.join('+')}',
         setpts=N/FRAME_RATE/TB" \
-    -af "aselect='between(t,4,6.5)+between(t,17,26)+between(t,74,91)',
+    -af "aselect='${chops.join('+')}',
         asetpts=N/SR/TB" "${folderPath}/${name}-chopped.mp4" -y`;
     // const commandOne = duration > 300
     //   ? `ffmpeg -i "${vidPath}" \
@@ -53,18 +54,27 @@ module.exports = (info, callback) => {
         info.event.sender.send('working', 'add track to vid');
         cp.exec(`ffmpeg \
     -i "${folderPath}/${name}-dubbed.mp4" \
-    -vf scale="-2:1000" -c:a copy "${folderPath}/${name}-scaled.mp4" -y`, (err) => {
+    -vf "scale=-2:1000,crop=1000:1000" -c:a copy "${folderPath}/${name}-scaled.mp4" -y`, (err) => {
           if (err) throw err;
           info.event.sender.send('working', 'resized video');
           cp.exec(`ffmpeg \
       -i "${folderPath}/${name}-scaled.mp4" \
-      -i "${info.outputPath}/${name} cover2.png" \
+      -i "${folderPath}/${name} cover3.png" \
       -filter_complex \
       "overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2" \
       -codec:a copy "${folderPath}/${name}-ig.mp4" -y`, (err) => {
             if (err) throw err;
             info.event.sender.send('working', 'added logo + cover');
             callback(null);
+            // cp.exec(`ffmpeg \
+            // -itsoffset 00:00:0.050 -i "${outputPath}/${name}.mp3" \
+            // -f lavfi -i color=s=2560x1440:r=120:color=white  \
+            // -filter_complex \
+            // "[0:a]aformat=channel_layouts=mono,showwaves=s=1280x720:mode=line:r=30:colors=black[v];[1:v][v]overlay=format=auto:x=(W-w)/2:y=(H-h)/2,format=yuv420p[outv]" -map "[outv]" -map 0:a -c:v libx264 -c:a aac -vbr 5 -shortest "${folderPath}/${name}-sound.mp4" -y`, (err) => {
+            //   if (err) throw err;
+            //   info.event.sender.send('working', 'sound stuff');
+            //   callback(null);
+            // });
           });
         });
       });
