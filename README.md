@@ -33,7 +33,7 @@ npm start
 ### Start Webpack
 
 ```
-npm run react-dev
+npm run build
 ```
 
 ## Built With
