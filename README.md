@@ -9,11 +9,11 @@ Created using Electron, and React this desktop application works on any platform
 
 ### Prerequisites
 
-What things you need to install the software and how to install them
+What you need to install
 
 ```
 node 12.16.1
-MongoDB 4.2
+Electron
 ```
 
 ### Installing
