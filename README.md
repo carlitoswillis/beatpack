@@ -14,6 +14,9 @@ What you need to install
 ```
 node 12.16.1
 Electron
+ffmpeg
+LAME
+graphicsmagick
 ```
 
 ### Installing
