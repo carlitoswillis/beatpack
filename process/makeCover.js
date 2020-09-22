@@ -4,6 +4,7 @@
 /* eslint-disable prefer-rest-params */
 // gm - Copyright Aaron Heckmann <aaron.heckmann+github@gmail.com> (MIT Licensed)
 const gm = require('gm');
+const path = require('path');
 const sizeOf = require('image-size');
 
 function randomcolor() {
@@ -32,7 +33,7 @@ function colors() {
 
 function composeCoverArt({
   folderPath, imagePath, dimensions, colorsnumber, beatName, bpm,
-  key, red, green, blue, outputPath, name,
+  key, red, green, blue, outputPath, name, logoPath,
 }, callback) {
   return gm(imagePath)
     .gravity('North')
@@ -63,21 +64,19 @@ function composeCoverArt({
     .colorize(red, green, blue)
     .write(`${folderPath}/cropped.jpg`, function (err) {
       if (err) return console.dir(arguments);
-      // console.log('Cropped image for cover art');
       return gm(`${folderPath}/cropped.jpg`)
-        .composite('/Users/carlitoswillis/Documents/brand graphics/cmd logo/barlogocover-01.png')
+        .composite(logoPath)
         .write(`${outputPath}/${name} cover.jpg`, (err) => {
           if (err) throw err;
-          // console.log('Finished cover art');
           callback(null);
         });
     });
 }
 
 function composeCoverArtTransparency({
-  beatName, bpm, key, outputPath, name, folderPath,
+  beatName, bpm, key, outputPath, name, folderPath, logoPath,
 }, callback) {
-  return gm('/Users/carlitoswillis/Documents/brand graphics/cmd logo/barlogocover-01.png')
+  return gm(logoPath)
     .gravity('North')
     .fontSize(36)
     .fill('black')
@@ -97,8 +96,7 @@ function composeCoverArtTransparency({
     .gravity('South')
     .write(`${outputPath}/${name} cover2.png`, (err) => {
       if (err) throw err;
-      // console.log('Finished transparent art');
-      return gm('/Users/carlitoswillis/Documents/brand graphics/cmd logo/barlogocover2-01.png')
+      return gm(logoPath)
         .gravity('North')
         .fontSize(36)
         .fill('black')
@@ -119,13 +117,12 @@ function composeCoverArtTransparency({
         .write(`${folderPath}/${name} cover3.png`, (err) => {
           if (err) throw err;
           callback(null);
-          // console.log('Finished cover art');
         });
     });
 }
 
 function composeFullScreenArt({
-  imagePath, folderPath, dimensions, beatName, bpm, key, colorsnumber, red, green, blue,
+  imagePath, folderPath, dimensions, beatName, bpm, key, colorsnumber, red, green, blue, fullscreenLogoPath,
 }, callback) {
   gm(imagePath)
     .gravity('North')
@@ -158,12 +155,10 @@ function composeFullScreenArt({
     .extent(1920, 1080)
     .write(`${folderPath}/fullscreen.jpg`, function (err) {
       if (err) return console.dir(arguments);
-      // console.log('finished fullscreen image for video');
       return gm(`${folderPath}/fullscreen.jpg`)
-        .composite('/Users/carlitoswillis/Documents/brand graphics/whitebarlogoFS.png')
+        .composite(fullscreenLogoPath)
         .write(`${folderPath}/fullscreen.jpg`, function (err) {
           if (err) return console.dir(arguments);
-          // console.log('Added logo to fullscreen');
           callback(null);
         });
     });
@@ -184,13 +179,12 @@ function composeThumbnail({
     .border(20, 20)
     .write(`${folderPath}/bordered.jpg`, function (err) {
       if (err) return console.dir(arguments);
-      // console.log('cropped for thumbnail and added border');
-      return gm('/Users/carlitoswillis/Documents/graphic sources/typebeat.png')
+      return gm(path.resolve(__dirname, '..', 'public', 'typebeat.png'))
         .gravity('North')
         .background(`rgb(${colorsArr})`)
         .extent(1080, 1080)
         .gravity('South')
-        .font('/Users/carlitoswillis/Downloads/bebas_neue/BebasNeue-Regular.ttf')
+        .font(path.resolve(__dirname, '..', 'public', 'bebas_neue', 'BebasNeue-Regular.ttf'))
         .fontSize(measure(type))
         .fill(`rgb(${[...colorsArr].map((x) => x * 0.85)})`)
         .stroke(`rgb(${[...colorsArr].map((x) => x * 0.85)})`, 10)
@@ -200,13 +194,11 @@ function composeThumbnail({
         .drawText(-3, measure('Type Beat') * 1.03, type)
         .write(`${folderPath}/text.jpg`, (err) => {
           if (err) return console.dir(arguments);
-          // console.log('created text image for thumbnail');
           return gm(`${folderPath}/text.jpg`)
             .append(`${folderPath}/bordered.jpg`, true)
             .noise('laplacian')
             .write(`${folderPath}/thumb.jpg`, function (err) {
               if (err) return console.dir(arguments);
-              // console.log('finished thumbnail');
               callback(null);
             });
         });
@@ -215,7 +207,7 @@ function composeThumbnail({
 
 module.exports = (info, callback) => {
   const {
-    name, imagePath, folderPath, type, outputPath, beatName, bpm, key,
+    name, imagePath, folderPath, type, outputPath, beatName, bpm, key, logoPath, fullscreenLogoPath,
   } = info;
   const measure = (str) => (2.2639 * 1080) / (str.length + 5);
   const [red, green, blue] = [randomcolor(), randomcolor(), randomcolor()];
@@ -227,16 +219,16 @@ module.exports = (info, callback) => {
   }, () => {
     info.event.sender.send('working', 'made thumbnail');
     composeFullScreenArt({
-      imagePath, folderPath, dimensions, beatName, bpm, key, colorsnumber, red, green, blue,
+      imagePath, folderPath, dimensions, beatName, bpm, key, colorsnumber, red, green, blue, fullscreenLogoPath,
     }, () => {
       composeCoverArt({
         // make transparent cover for video stuff
-        folderPath, imagePath, dimensions, colorsnumber, beatName, bpm, key, red, green, blue, outputPath, name,
+        folderPath, imagePath, dimensions, colorsnumber, beatName, bpm, key, red, green, blue, outputPath, name, logoPath,
       }, () => {
         info.event.sender.send('working', 'made full screen cover');
         composeCoverArtTransparency({
           // make transparent cover for video stuff
-          beatName, bpm, key, outputPath, name, folderPath,
+          beatName, bpm, key, outputPath, name, folderPath, logoPath,
         }, () => {
           info.event.sender.send('working', 'made transparent cover art with logo');
           callback(null);

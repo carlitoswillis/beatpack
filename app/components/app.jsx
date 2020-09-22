@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import DropArea from './droparea';
 import CheckBoxes from './checkboxes';
 import ImageDropArea from './imagedroparea';
@@ -6,12 +6,12 @@ import VideoDropArea from './videodroparea';
 import InputArea from './inputarea';
 import LCD from './lcd';
 
-const fs = require('fs');
 const path = require('path');
-
-const { dialog } = require('electron').remote;
+const fs = require('fs');
 const electron = require('electron');
+const { dialog } = require('electron').remote;
 
+const home = path.join('Applications', 'beatpack.app', 'Contents', 'Resources', 'app');
 const ipc = electron.ipcRenderer;
 
 const lcdAlignCenter = (text, size = 16) => {
@@ -20,37 +20,8 @@ const lcdAlignCenter = (text, size = 16) => {
   return `${p}${text}${p}`;
 };
 
-const lcdAlignRight = (text, size = 16) => {
-  text = text.substr(0, size);
-  const p = new Array(((size - text.length)) | 0).fill(' ').join('');
-  return `${p}${text}`;
-};
-
-const Saved = ({ status }) => {
-  const [saved, showSaved] = useState(status);
-
-  return (
-    <div>
-      {saved
-        ? (
-          <div className="savedModal">
-            <img className="saved" src="/Users/carlitoswillis/local/programming/beatpack/assets/giphy.gif" />
-          </div>
-        )
-        : (
-          <div className="savedModal inv">
-            <img className="saved" src="/Users/carlitoswillis/local/programming/beatpack/assets/giphy.gif" />
-          </div>
-        )}
-    </div>
-  );
-};
-
 function App() {
-  const [info, updateInfo] = useState(JSON.parse(fs.readFileSync(path.resolve('settings', 'info.json'))));
-  // const [info, updateInfo] = useState({
-  //   single: true, type: '', mp3: true, mp4: true, zip: true, upload: false, outputPath: '/Users/carlitoswillis/Google Drive (carlitoswillis@berkeley.edu)/Track Outs/processed', files: { images: [], projects: [] }, delete: false, art: true, done: 0,
-  // });
+  const [info, updateInfo] = useState(JSON.parse(fs.readFileSync(path.resolve(!process.env._ ? home : '', 'settings', 'info.json'))));
 
   const loadFiles = (processedData) => {
     const {
@@ -58,13 +29,14 @@ function App() {
     } = processedData;
     updateInfo((prevInfo) => {
       const updatedInfo = { ...prevInfo };
-      updatedInfo.files[id] = Array.from(new Set([...updatedInfo.files[id], ...files]));
-      updatedInfo.lib = { ...updatedInfo.lib, ...lib };
-      return updatedInfo;
-    });
-    updateInfo((prevInfo) => {
-      const updatedInfo = { ...prevInfo };
+      const oldFiles = updatedInfo.files[id];
+      updatedInfo.files[id] = [...files];
+      const ids = updatedInfo.files[id].map(x => x.index);
+      oldFiles.forEach((file) => {
+        if (!ids.includes(file.index)) updatedInfo.files[id].push(file);
+      });
       updatedInfo.trackInfo = { ...trackInfo, ...updatedInfo.trackInfo };
+      updatedInfo.lib = { ...updatedInfo.lib, ...lib };
       return updatedInfo;
     });
   };
@@ -77,10 +49,6 @@ function App() {
       const updatedInfo = { ...prevInfo };
       updatedInfo.files[id] = Array.from(new Set([...updatedInfo.files[id], ...files]));
       updatedInfo.imageLib = { ...updatedInfo.imageLib, ...imageLib };
-      return updatedInfo;
-    });
-    updateInfo((prevInfo) => {
-      const updatedInfo = { ...prevInfo };
       updatedInfo.imgInfo = { ...imgInfo, ...updatedInfo.imgInfo };
       return updatedInfo;
     });
@@ -125,7 +93,7 @@ function App() {
         updatedInfo.message = 'finished track!';
         const track = JSON.parse(processedData);
         updatedInfo.lib[track.path][track.index] = track;
-        updatedInfo.trackInfo[track.trackpath] = track;
+        updatedInfo.trackInfo[track.trackPath] = track;
         updatedInfo.done += 1;
         // if (updatedInfo.done < updatedInfo.files.projects.length) {
         updatedInfo.files.projects = Object.values(updatedInfo.lib)
@@ -308,7 +276,6 @@ function App() {
 
   return (
     <div onClick={() => console.log(info)}>
-      {/* <Saved status={info.saved || false} /> */}
       <div className="titleBG">
         {/* <h1 className="beatpackTitle">Beatpack</h1> */}
         <CheckBoxes handleCheck={handleCheck} info={info} />

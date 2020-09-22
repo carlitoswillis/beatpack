@@ -1,6 +1,7 @@
 /* eslint-disable import/no-dynamic-require */
 /* eslint-disable no-param-reassign */
 const path = require('path');
+const fs = require('fs');
 
 const {
   mp3, zip, art, mp4, upload, cleanUp,
@@ -10,40 +11,29 @@ const ops = {
   mp3, zip, art, mp4, upload, cleanUp,
 };
 
-// const nextImage = (info) => {
-//   let count = -1;
-//   const cap = info.files.images.length;
-//   return function () {
-//     count += 1;
-//     return info.files.images[count % cap];
-//   };
-// };
-
-// const nextVideo = (info) => {
-//   let count = -1;
-//   const cap = info.files.videos.length;
-//   return function () {
-//     count += 1;
-//     return info.files.videos[count % cap];
-//   };
-// };
-
 const sanitize = (info) => {
   if (!info.event) {
     info.event = { sender: { send: () => {} } };
   }
   info.folderPath = info.trackPath;
-  // info.nextImage = nextImage(info);
-  // info.nextVideo = nextVideo(info);
-  // info.imagePath = info.nextImage();
-  // info.vidPath = info.nextVideo();
+  try {
+    fs.lstatSync(info.outputPath).isDirectory();
+  } catch (e) {
+    try {
+      fs.lstatSync(path.resolve(process.env.HOME, 'Downloads', 'beatpack')).isDirectory();
+    } catch (f) {
+      fs.mkdirSync(path.resolve(process.env.HOME, 'Downloads', 'beatpack'));
+    }
+    info.outputPath = path.resolve(process.env.HOME, 'Downloads', 'beatpack');
+  }
+  info.logoPath = path.resolve(__dirname, '..', 'public', 'logo.png');
+  info.fullscreenLogoPath = path.resolve(__dirname, '..', 'public', 'fullscreen.png');
   info.imagePath = info.files.images[Math.floor(Math.random() * Math.floor(info.files.images.length))];
   info.vidPath = info.files.videos[Math.floor(Math.random() * Math.floor(info.files.videos.length))];
   info.tasks = ['mp3', 'zip', 'art', 'mp4', 'upload', 'cleanUp']
     .filter((x) => Object.keys(info)
       .includes(x) && info[x])
     .map((x) => [x, ops[x]]);
-  // youtube information
   info.tags = info.tags.split(', ').join(',').split(',');
   info.dates = new Array(7)
     .fill(new Date(info.startDate || new Date()))

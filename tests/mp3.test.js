@@ -1,28 +1,18 @@
-const sanitize = require('../server/process/sanitize');
-const encode = require('../server/process/encode');
-const testInfo = require('./testInfo');
+const sanitize = require('../process/sanitize');
+const encode = require('../process/encode');
+const testInfo = require('../settings/info');
 
+const event = { sender: { send: () => {} } };
 let single;
-let bulk;
 
 beforeEach(() => {
-  single = sanitize(testInfo());
-  bulk = sanitize(testInfo(true));
+  const { projects } = testInfo.files;
+  const beat = projects.pop();
+  single = { ...testInfo, ...beat, event };
+  single = sanitize(single);
 });
 
 describe('convert wav file to mp3 -> to output folder', () => {
-  test('the data is processed', (done) => {
-    function callback() {
-      try {
-        console.log('made it!');
-        done();
-      } catch (error) {
-        done(error);
-      }
-    }
-
-    encode(bulk, callback);
-  });
   test('the data is processed', (done) => {
     function callback() {
       try {

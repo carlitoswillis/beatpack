@@ -1,33 +1,26 @@
 /* eslint-disable no-undef */
-const sanitize = require('../server/process/sanitize');
-const testInfo = require('./testInfo');
+const sanitize = require('../process/sanitize');
+const testInfo = require('../settings/info');
+
+const event = { sender: { send: () => {} } };
 
 let single;
-let bulk;
 
 beforeEach(() => {
-  single = sanitize(testInfo());
-  bulk = sanitize(testInfo(true));
+  const { projects } = testInfo.files;
+  const beat = projects.pop();
+  single = { ...testInfo, ...beat, event };
+  single.mp4 = false;
+  single.cleanUp = false;
+  single.delete = false;
+  single.art = false;
+  single.delete = false;
+  single.mp3 = false;
+  single.zip = false;
+  single.upload = false;
+  single = sanitize(single);
 });
 
-test('the data is processed as same object', () => {
-  expect(single).not.toBe(bulk);
-});
 test('the data is processed as same object', () => {
   expect(single).toBe(single);
 });
-test('the data is processed as same object', () => {
-  expect(bulk).not.toBe(single);
-});
-
-// sanitize(bulk);
-// describe('process input data for further use', () => {
-//   test('the data is processed as same object', () => {
-//     expect(sanitize(single)).toBe(single);
-//   });
-//   test('the data is processed as same object', () => {
-//     const info2 = { ...single };
-//     single.nextBeat();
-//     expect(info2.folderPath).not.toEqual(single.folderPath);
-//   });
-// });

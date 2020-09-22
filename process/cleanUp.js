@@ -1,31 +1,24 @@
 /* eslint-disable no-console */
 const fs = require('fs');
+const path = require('path');
 
 module.exports = (info, callback) => {
   const { outputPath, folderPath, name } = info;
-  fs.rename(`${folderPath}/stems/${name}.wav`, `${outputPath}.wav`, () => {
-    console.log('Moved wav file!');
-    fs.unlink(`${folderPath}/fullscreen.jpg`, () => {
-      fs.unlink(`${folderPath}/barlogo.png`, () => {
-        fs.rename(`${folderPath}/${name}.mp3`, `${outputPath}/${name}.mp3`, () => {
-          console.log('Moved mp3');
-          fs.unlink(`${folderPath}/text.jpg`, () => {
-            fs.unlink(`${folderPath}/main.jpg`, () => {
-              fs.unlink(`${folderPath}/cropped.jpg`, () => {
-                fs.unlink(`${folderPath}/bordered.jpg`, () => callback(null));
-                fs.unlink(`${folderPath}/thumb.jpg`, () => {
-                  console.log('Thumbnail deleted');
-                  fs.unlink(`${folderPath}/${name}.mp4`, () => {
-                    console.log('Video deleted');
-                    console.log('All Done');
-                    callback(null);
-                  });
-                });
-              });
-            });
-          });
-        });
-      });
-    });
+  const unlink = [`${folderPath}/${name}-chopped.mp4`, `${outputPath}/${name} cover2.png`, `${folderPath}/${name} cover3.png`, `${folderPath}/${name}-scaled.mp4`, `${folderPath}/fullscreen.jpg`, `${folderPath}/text.jpg`, `${folderPath}/cropped.jpg`, `${folderPath}/bordered.jpg`, `${folderPath}/thumb.jpg`, `${folderPath}/${name}.mp3`];
+  fs.renameSync(`${folderPath}/${name}-dubbed.mp4`, `${outputPath}/${name}-dubbed.mp4`);
+  fs.renameSync(`${folderPath}/${name}-ig.mp4`, `${outputPath}/${name}-ig.mp4`);
+  fs.renameSync(`${folderPath}/${name}.mp4`, `${outputPath}/${name}.mp4`);
+  fs.copyFileSync(`${folderPath}/stems/${name}.wav`, `${outputPath}/${name}.wav`);
+  // `${folderPath}/main.jpg`
+  // `${folderPath}/${name}.mp4`
+  // `${folderPath}/barlogo.png`
+  // `${folderPath}/${name}-dubbed.mp4`
+  unlink.forEach((file) => {
+    try {
+      fs.unlinkSync(file);
+    } catch (e) {
+      fs.writeFileSync(path.resolve(__dirname, '..', 'errorlogs', `${new Date().getTime().toString()}`), JSON.stringify({ location: 'cleanup', args: file, e }));
+    }
   });
+  callback(null);
 };

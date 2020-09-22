@@ -3,10 +3,8 @@ const electron = require('electron');
 const path = require('path');
 const url = require('url');
 const fs = require('fs');
-const unhandled = require('electron-unhandled');
 
-unhandled();
-
+const home = path.join('Applications', 'beatpack.app', 'Contents', 'Resources', 'app');
 const fsPromises = fs.promises;
 const taskHandler = require(path.resolve(__dirname, 'process'));
 const sanitize = require(path.resolve(__dirname, 'process', 'sanitize'));
@@ -39,7 +37,6 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
-  // console.log(electron.dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'] }));
 }
 
 app.on('ready', createWindow);
@@ -90,6 +87,7 @@ ipc.on('process-file-selection', (event, data) => {
           return currTrackInf;
         });
       });
+      // console.log('trackInfo\n', trackInfo, 'lib\n', lib, 'folders\n', values, 'paths\n', paths);
       event
         .sender
         .send('processed-files', JSON.stringify({
@@ -213,7 +211,7 @@ ipc.on('start', (event, data) => {
   run();
 });
 ipc.on('save', (event, data) => {
-  fs.writeFile('./settings/info.json', data, (err) => {
+  fs.writeFile(path.resolve(!process.env._ ? home : '', 'settings', 'info.json'), data, (err) => {
     if (err) throw err;
     event
       .sender
@@ -223,5 +221,5 @@ ipc.on('save', (event, data) => {
 ipc.on('reset', (event) => {
   event
     .sender
-    .send('reseted', fs.readFileSync('./settings/default.json').toString());
+    .send('reseted', fs.readFileSync(path.resolve(!process.env._ ? home : '', 'settings', 'default.json')).toString());
 });

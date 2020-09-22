@@ -3,18 +3,22 @@ const ffmpeg = require('../process/ffmpeg');
 const sanitize = require('../process/sanitize');
 const testInfo = require('../settings/info');
 
-let info = { ...testInfo, ...testInfo.files.projects[0] };
+const event = { sender: { send: () => {} } };
 
 let single;
-let bulk;
-
-jest.setTimeout.Timeout = 100000000;
 
 beforeEach(() => {
-  single = sanitize(info);
-  // bulk = sanitize(testInfo(true));
+  const { projects } = testInfo.files;
+  const beat = projects.pop();
+  single = { ...testInfo, ...beat, event };
+  single.mp4 = true;
+  single.art = true;
+  single.mp3 = true;
+  single.upload = false;
+  single = sanitize(single);
 });
 
+jest.setTimeout.Timeout = 100000000;
 describe('take fullscreen image and mp3 file to create video', () => {
   xtest('the data is processed', (done) => {
     jest.setTimeout(10 ** 5);

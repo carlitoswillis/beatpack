@@ -1,16 +1,26 @@
 /* eslint-disable import/no-dynamic-require */
 const path = require('path');
-
-const sanitize = require('../process/sanitize');
 const makeCover = require('../process/makeCover');
+const sanitize = require('../process/sanitize');
 const testInfo = require('../settings/info');
-let info = { ...testInfo, ...testInfo.files.projects[0] };
+
+const event = { sender: { send: () => {} } };
 
 let single;
-let bulk;
 
 beforeEach(() => {
-  single = sanitize(info);
+  const { projects } = testInfo.files;
+  const beat = projects.pop();
+  single = { ...testInfo, ...beat, event };
+  single.mp4 = false;
+  single.cleanUp = false;
+  single.delete = false;
+  single.art = false;
+  single.delete = false;
+  single.mp3 = false;
+  single.zip = false;
+  single.upload = false;
+  single = sanitize(single);
 });
 
 describe('take image/s and create graphics for content', () => {

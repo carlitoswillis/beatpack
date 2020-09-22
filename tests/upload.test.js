@@ -1,10 +1,25 @@
-/* eslint-disable no-undef */
-const sanitize = require('../server/process/sanitize');
-const upload = require('../server/process/upload');
-const testInfo = require('./testInfo');
+const upload = require('../process/upload');
+const sanitize = require('../process/sanitize');
+const testInfo = require('../settings/info');
+
+const event = { sender: { send: () => {} } };
 
 let single;
-let bulk;
+
+beforeEach(() => {
+  const { projects } = testInfo.files;
+  const beat = projects.pop();
+  single = { ...testInfo, ...beat, event };
+  single.mp4 = false;
+  single.cleanUp = false;
+  single.delete = false;
+  single.art = false;
+  single.delete = false;
+  single.mp3 = false;
+  single.zip = false;
+  single.upload = true;
+  single = sanitize(single);
+});
 
 const skip = (info, cb) => {
   cb();

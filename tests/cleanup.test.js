@@ -1,4 +1,5 @@
-const zip = require('../process/zipfolder');
+/* eslint-disable no-undef */
+const cleanUp = require('../process/cleanUp');
 const sanitize = require('../process/sanitize');
 const testInfo = require('../settings/info');
 
@@ -10,18 +11,15 @@ beforeEach(() => {
   const { projects } = testInfo.files;
   const beat = projects.pop();
   single = { ...testInfo, ...beat, event };
-  single.mp4 = false;
-  single.cleanUp = false;
-  single.delete = false;
-  single.art = false;
-  single.delete = false;
-  single.mp3 = false;
-  single.zip = true;
+  single.delete = true;
+  single.cleanUp = true;
   single = sanitize(single);
 });
 
-describe('collect wav files and zip them together', () => {
+jest.setTimeout.Timeout = 100000000;
+describe('take fullscreen image and mp3 file to create video', () => {
   test('the data is processed', (done) => {
+    jest.setTimeout(10 ** 5);
     function callback() {
       try {
         console.log('made it!');
@@ -30,6 +28,6 @@ describe('collect wav files and zip them together', () => {
         done(error);
       }
     }
-    zip(single, callback);
+    cleanUp(single, callback);
   });
 });
