@@ -47,7 +47,7 @@ module.exports = (info, callback) => {
             -codec:a copy "${folderPath}/${name}-ig.mp4" -y`, (err) => {
             if (err) fs.writeFileSync(path.resolve(__dirname, '..', 'errorlogs', `${new Date().getTime().toString()}`), JSON.stringify({ location: 'ffmpeg', err }));
             info.event.sender.send('working', 'added logo + cover');
-            cp.exec(`ffmpeg \
+            cp.exec(`/usr/local/bin/ffmpeg \
             -loop 1 -y -i "${folderPath}/fullscreen.jpg" -itsoffset 00:00:0.050 -i "${folderPath}/${name}.mp3" \
             -vf "scale=1920:-1/dar,setsar=1" \
             -c:v libx264 -tune stillimage -c:a aac -vbr 5 -pix_fmt yuv420p -shortest \

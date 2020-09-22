@@ -607,3 +607,23 @@ text {
   /* border: 1px solid rgba(87, 25, 25, 0.356); */
   background-color: rgba(87, 25, 25, 0.356);
 }
+
+.player {
+  display: grid;
+  width: 100%;
+  height: 25px;
+  padding-top: 10px;
+  /* margin: auto; */
+}
+
+audio:focus {
+  outline: none;
+}
+
+.fcolor {
+  background-color: rgb(87, 25, 25);
+}
+
+.fdcolor {
+  background-color:rgb(28, 92, 99);
+}

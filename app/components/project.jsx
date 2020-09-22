@@ -56,6 +56,9 @@ function Project({
                 {close
                   ? (<button type="button" onClick={() => removeTrack(file)} className="closeX">X</button>)
                   : (<button type="button" onClick={() => removeTrack(file)} className="closeXInvisible">X</button>)}
+                  <audio className="player fdcolor" controls>
+                    <source src={`${file.trackPath}/stems/${file.file}.wav`} type="audio/wav" />
+                  </audio>
               </li>
             </div>
           )
@@ -66,6 +69,9 @@ function Project({
                 {close
                   ? (<button type="button" onClick={() => removeTrack(file)} className="closeX">X</button>)
                   : (<button type="button" onClick={() => removeTrack(file)} className="closeXInvisible">X</button>)}
+                  <audio className="player fcolor" controls>
+                    <source src={`${file.trackPath}/stems/${file.file}.wav`} type="audio/wav" />
+                  </audio>
               </li>
             </div>
           )}

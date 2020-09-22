@@ -26,8 +26,18 @@ const sanitize = (info) => {
     }
     info.outputPath = path.resolve(process.env.HOME, 'Downloads', 'beatpack');
   }
-  info.logoPath = path.resolve(__dirname, '..', 'public', 'logo.png');
-  info.fullscreenLogoPath = path.resolve(__dirname, '..', 'public', 'fullscreen.png');
+  try {
+    fs.lstatSync(info.logoPath).isFile();
+  } catch (e) {
+    info.logoPath = path.resolve(__dirname, '..', 'public', 'logo.png');
+  }
+  try {
+    fs.lstatSync(info.fullscreenLogoPath).isFile();
+  } catch (e) {
+    info.fullscreenLogoPath = path.resolve(__dirname, '..', 'public', 'fullscreen.png');
+  }
+  info.logoPath = !info.logoPath.includes('.png') ? path.resolve(__dirname, '..', 'public', 'logo.png') : info.logoPath;
+  info.fullscreenLogoPath = !info.fullscreenLogoPath.includes('.png') ? path.resolve(__dirname, '..', 'public', 'fullscreen.png') : info.fullscreenLogoPath;
   info.imagePath = info.files.images[Math.floor(Math.random() * Math.floor(info.files.images.length))];
   info.vidPath = info.files.videos[Math.floor(Math.random() * Math.floor(info.files.videos.length))];
   info.tasks = ['mp3', 'zip', 'art', 'mp4', 'upload', 'cleanUp']
@@ -49,6 +59,10 @@ const sanitize = (info) => {
   info.name = info.file;
   info.videoPath = `${info.folderPath}/${info.name}.mp4`;
   info.date = info.dates.shift();
+  info.beatName = info.beatName || 'untitled';
+  info.bpm = info.bpm || '?';
+  info.key = info.key || '?';
+  info.producer = info.producer || '?';
   info.title = `${info.title} ${info.beatName}`;
   const titleArr = info.title.split('');
   while (titleArr.length > 100) {

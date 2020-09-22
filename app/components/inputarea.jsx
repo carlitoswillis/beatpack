@@ -28,6 +28,11 @@ function DT() {
   );
 }
 
+const stop = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+};
+
 const InputArea = ({ inputHandler }) => (
   <div
     className="folder dropArea grayArea"
@@ -36,6 +41,51 @@ const InputArea = ({ inputHandler }) => (
     <div className="inputArea " />
     <DT />
     <div className="videoData">
+      <input
+        className="inputForInfo"
+        type="text"
+        id="outputPath"
+        placeholder="output path"
+        onChange={(e) => inputHandler(e)}
+        onDrop={(e) => {
+          stop(e);
+          inputHandler(e, e.dataTransfer.files[0].path);
+          e.target.value = e.dataTransfer.files[0].path;
+        }}
+        onDragOver={stop}
+        onDragEnter={stop}
+        onDragLeave={stop}
+      />
+      <input
+        className="inputForInfo"
+        type="text"
+        id="logoPath"
+        placeholder="logo path"
+        onChange={(e) => inputHandler(e)}
+        onDrop={(e) => {
+          stop(e);
+          inputHandler(e, e.dataTransfer.files[0].path);
+          e.target.value = e.dataTransfer.files[0].path;
+        }}
+        onDragOver={stop}
+        onDragEnter={stop}
+        onDragLeave={stop}
+      />
+      <input
+        className="inputForInfo"
+        type="text"
+        id="fullscreenLogoPath"
+        placeholder="fullscreen logo path"
+        onChange={(e) => inputHandler(e)}
+        onDrop={(e) => {
+          stop(e);
+          inputHandler(e, e.dataTransfer.files[0].path);
+          e.target.value = e.dataTransfer.files[0].path;
+        }}
+        onDragOver={stop}
+        onDragEnter={stop}
+        onDragLeave={stop}
+      />
       <input
         onChange={(e) => inputHandler(e)}
         type="date"

@@ -57,7 +57,7 @@ const includesExtentions = (item, col = extensions) => col.map((x) => item.inclu
 /* takes files, tries to clean up folders where stems are placed
 and then organizes them into data structures for front end */
 ipc.on('process-file-selection', (event, data) => {
-  const { filePaths } = JSON.parse(data);
+  const { filePaths, producer } = JSON.parse(data);
   const id = 'projects';
   const paths = [];
   const folders = [];
@@ -78,7 +78,7 @@ ipc.on('process-file-selection', (event, data) => {
       });
       Object.keys(lib).forEach((key) => {
         lib[key] = lib[key].map((track, index) => {
-          const [beatName, bpmkey] = track.toLowerCase().split(' (prod. barlitxs) ');
+          const [beatName, bpmkey] = track.toLowerCase().split(` (prod. ${producer || 'barlitxs'}) `);
           const [bpm, scale] = bpmkey ? bpmkey.split(' bpm ') : [null, null];
           const currTrackInf = {
             path: key, file: track, beatName, bpm, key: scale, trackPath: `${key}/${track}`, index,
@@ -87,7 +87,6 @@ ipc.on('process-file-selection', (event, data) => {
           return currTrackInf;
         });
       });
-      // console.log('trackInfo\n', trackInfo, 'lib\n', lib, 'folders\n', values, 'paths\n', paths);
       event
         .sender
         .send('processed-files', JSON.stringify({

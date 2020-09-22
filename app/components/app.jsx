@@ -95,11 +95,12 @@ function App() {
         updatedInfo.lib[track.path][track.index] = track;
         updatedInfo.trackInfo[track.trackPath] = track;
         updatedInfo.done += 1;
-        // if (updatedInfo.done < updatedInfo.files.projects.length) {
         updatedInfo.files.projects = Object.values(updatedInfo.lib)
           .reduce((a, b) => a.concat(b), []);
         if (updatedInfo.done === updatedInfo.files.projects.length) {
+          console.log('should be done');
           updatedInfo.message = 'finished all tracks!';
+          updatedInfo.done = 0;
           updatedInfo.going = false;
           return updatedInfo;
         }
@@ -134,7 +135,7 @@ function App() {
 
   const handleDrop = (e) => {
     const filePaths = Array.from(e.dataTransfer.files).map((file) => file.path);
-    ipc.send('process-file-selection', JSON.stringify({ id: 'projects', filePaths }));
+    ipc.send('process-file-selection', JSON.stringify({ id: 'projects', filePaths, producer: info.producer }));
   };
 
   const selectFiles = () => {
@@ -142,7 +143,7 @@ function App() {
       .then((result) => result)
       .then((selection) => {
         if (!selection.canceled) {
-          ipc.send('process-file-selection', JSON.stringify({ id: 'projects', filePaths: selection.filePaths }));
+          ipc.send('process-file-selection', JSON.stringify({ id: 'projects', filePaths: selection.filePaths, producer: info.producer }));
         }
       });
   };
@@ -212,11 +213,11 @@ function App() {
         }
       });
   };
-  const inputHandler = (e) => {
+  const inputHandler = (e, value) => {
     e.preventDefault();
     e.stopPropagation();
     const updatedInfo = { ...info };
-    updatedInfo[e.target.id] = e.target.value;
+    updatedInfo[e.target.id] = value || e.target.value;
     updateInfo(updatedInfo);
   };
 
@@ -238,12 +239,14 @@ function App() {
   const buttonHandler = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const infoToProcess = { ...info };
-    if (e.target.id === 'start') {
-      infoToProcess.going = true;
-      updateInfo(infoToProcess);
+    if (!info.going) {
+      const infoToProcess = { ...info };
+      if (e.target.id === 'start') {
+        infoToProcess.going = true;
+        updateInfo(infoToProcess);
+      }
+      ipc.send(e.target.id, JSON.stringify(infoToProcess));
     }
-    ipc.send(e.target.id, JSON.stringify(infoToProcess));
   };
 
   const handleVidDrop = (e) => {
