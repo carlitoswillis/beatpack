@@ -27,7 +27,7 @@ npm install
 
 To install MongoDB, please follow these [instructions](https://docs.mongodb.com/manual/tutorial/install-mongodb-on-ubuntu/)
 
-### Start Server
+### Start App
 
 ```
 npm start
@@ -36,7 +36,7 @@ npm start
 ### Start Webpack
 
 ```
-npm run build
+npm run build:dev
 ```
 
 ## Built With
