@@ -22,5 +22,6 @@ beforeEach(() => {
 });
 
 test('the data is processed as same object', () => {
+  console.log(Object.keys(single).sort().map(key => [key, single[key]]));
   expect(single).toBe(single);
 });

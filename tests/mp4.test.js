@@ -24,7 +24,7 @@ describe('take fullscreen image and mp3 file to create video', () => {
     jest.setTimeout(10 ** 5);
     function callback() {
       try {
-        console.log('made it!');
+        console.log('made it! bulk');
         done();
       } catch (error) {
         done(error);

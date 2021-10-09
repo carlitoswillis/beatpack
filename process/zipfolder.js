@@ -3,7 +3,9 @@ const archiver = require('archiver');
 
 module.exports = (info, callback) => {
   const { folderPath, name, outputPath } = info;
-  fs.readdir(`${folderPath}/stems`, (err, files) => {
+  let stemPath = `${folderPath}`;
+  fs.readdir(`${stemPath}`, (err, files) => {
+    if (err) console.log(err);
     const output = fs.createWriteStream(`${outputPath}/${name}.zip`);
     const archive = archiver('zip');
     output.on('close', () => {

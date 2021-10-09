@@ -33,6 +33,7 @@ function createWindow() {
     protocol: 'file:',
     slashes: true,
   }));
+  mainWindow.webContents.openDevTools();
   // mainWindow.loadURL('http://localhost:5000/beatpack.html');
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -51,7 +52,7 @@ app.on('activate', () => {
   }
 });
 
-const extensions = ['.zip', '.mp4', '.mp3', '.jpg', '.png', '.wav', '.rtf', '.md'];
+const extensions = ['.zip', '.mp4', '.m4v', '.mp3', '.jpg', '.png', '.wav', '.rtf', '.md'];
 const includesExtentions = (item, col = extensions) => col.map((x) => item.includes(x)).reduce((x, y) => x || y, false);
 
 /* takes files, tries to clean up folders where stems are placed
@@ -141,7 +142,7 @@ ipc.on('process-image-selection', (event, data) => {
     });
 });
 
-const vidTypes = ['.mov', '.avi', '.mp4', '.mkv'];
+const vidTypes = ['.mov', '.avi', '.mp4', '.mkv', '.m4v'];
 // takes images and prepares then to be displayed
 ipc.on('process-video-selection', (event, data) => {
   const { videoPaths } = JSON.parse(data);
@@ -191,11 +192,23 @@ ipc.on('start', (event, data) => {
   const parsedData = JSON.parse(data);
   const { projects } = parsedData.files;
   parsedData.files.projects = null;
+  const dates = new Array(7)
+    .fill(new Date(projects[0].startDate || new Date()))
+    .map((date) => {
+      date.setHours(projects[0].startTime ? projects[0].startTime
+        .split(':')[0] : 9,
+      projects[0].startTime ? projects[0].startTime
+        .split(':')[1] : 11, 0, 0);
+      date.setDate(date.getDate() + 1);
+      const time = date.toISOString();
+      return time;
+    });
   const run = () => {
     if (projects.length) {
       const beat = projects.pop();
       let info = { ...parsedData, ...beat, event };
       info = sanitize(info);
+      info.date = dates.shift();
       event
         .sender
         .send('starting-track', beat.beatName);
@@ -210,12 +223,9 @@ ipc.on('start', (event, data) => {
   run();
 });
 ipc.on('save', (event, data) => {
-  fs.writeFile(path.resolve(!process.env._ ? home : '', 'settings', 'info.json'), data, (err) => {
-    if (err) throw err;
-    event
-      .sender
-      .send('saved', JSON.stringify({ ...JSON.parse(data), lastSaved: new Date() }));
-  });
+  fs.writeFileSync(path.resolve(!process.env._ ? home : '', 'settings', 'info.json'), data);
+  event.sender.send('saved', JSON.stringify({ ...JSON.parse(data), lastSaved: new Date() }));
+  console.log('got passed that shit')
 });
 ipc.on('reset', (event) => {
   event

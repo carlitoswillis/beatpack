@@ -20,7 +20,7 @@ function DropArea(props) {
   const {
     handleDrop, selectFiles, id, title, info, updateTrack, removeTrack, removeFolder,
   } = props;
-  const [files, setFiles] = useState([]);
+  const [files, setFiles] = useState(info.lib);
   const [close, showClose] = useState(false);
   useEffect(() => {
     setFiles(info.lib);

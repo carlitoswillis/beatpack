@@ -1,19 +1,11 @@
-/* eslint-disable func-names */
-/* eslint-disable no-console */
-/* eslint-disable no-shadow */
-/* eslint-disable prefer-rest-params */
 // gm - Copyright Aaron Heckmann <aaron.heckmann+github@gmail.com> (MIT Licensed)
 const gm = require('gm');
+const fs = require('fs');
 const path = require('path');
 const sizeOf = require('image-size');
 
-function randomcolor() {
-  return Math.floor(Math.random() * (10));
-}
-
-function getRndInteger(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
+const randomcolor = () => Math.floor(Math.random() * (10));
+const getRndInteger = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
 function colors() {
   const v1 = () => {
@@ -28,13 +20,30 @@ function colors() {
     const b = () => [0, getRndInteger(175, 255)][Date.now() % 2];
     return [r(), g(), b()];
   };
-  return Date.now() % 2 === 0 ? v1() : v2();
+  return [v1, v2][Date.now() % 2]();
+}
+
+function addLogoToImage({
+  logoPath, folderPath, name, outputPath,
+}, callback) {
+  return gm(`${folderPath}/${name} cropped.png`)
+    .composite(logoPath)
+    .write(`${outputPath}/${name}.png`, (err) => {
+      if (err) throw err;
+      callback(null);
+    });
 }
 
 function composeCoverArt({
   folderPath, imagePath, dimensions, colorsnumber, beatName, bpm,
   key, red, green, blue, outputPath, name, logoPath,
 }, callback) {
+  const positionOne = 30;
+  const positionTwo = 160;
+  const largeFont = 36;
+  const smallFont = 22;
+  const distance = 20;
+
   return gm(imagePath)
     .gravity('North')
     .resize(dimensions.width <= dimensions.height
@@ -45,85 +54,85 @@ function composeCoverArt({
     .crop(1000, 1000, 0, 0)
     .colors(colorsnumber)
     .noise('poisson')
-    .fontSize(36)
+    .font(path.resolve(__dirname, '..', 'public', 'VCR_OSD_MONO_1.001.ttf'))
+    .fontSize(largeFont)
     .fill('black')
     .gravity('NorthEast')
-    .drawText(10, 270 - 60, beatName)
-    .fontSize(24)
-    .drawText(10, 310 - 60, `${bpm} bpm`)
-    .drawText(10, 340 - 60, key)
-    .drawText(10, 370 - 60, 'prod. barlitxs')
+    .drawText(10, positionTwo, beatName)
+    .fontSize(smallFont)
+    .drawText(10, positionTwo + distance, `${bpm} bpm`)
+    .drawText(10, positionTwo + distance * 2, key)
+    .drawText(10, positionTwo + distance * 3, 'prod. barlitxs')
     .fill('white')
-    .fontSize(36)
-    .drawText(10, 100 - 60, beatName)
-    .fontSize(24)
-    .drawText(10, 140 - 60, `${bpm} bpm`)
-    .drawText(10, 170 - 60, key)
-    .drawText(10, 200 - 60, 'prod. barlitxs')
+    .fontSize(largeFont)
+    .drawText(10, positionOne, beatName)
+    .fontSize(smallFont)
+    .drawText(10, positionOne + distance, `${bpm} bpm`)
+    .drawText(10, positionOne + distance * 2, key)
+    .drawText(10, positionOne + distance * 3, 'prod. barlitxs')
     .gravity('South')
     .colorize(red, green, blue)
-    .write(`${folderPath}/cropped.jpg`, function (err) {
+    .write(`${folderPath}/${name} cropped.png`, function (err) {
       if (err) return console.dir(arguments);
-      return gm(`${folderPath}/cropped.jpg`)
+      if (err) fs.writeFileSync(path.resolve(__dirname, '..', 'errorlogs', `${new Date().getTime().toString()}`), JSON.stringify({ location: 'makeCover/composeCoverArt', err }));
+      return gm(`${folderPath}/${name} cropped.png`)
         .composite(logoPath)
-        .write(`${outputPath}/${name} cover.jpg`, (err) => {
+        .write(`${outputPath}/${name}.png`, (err) => {
           if (err) throw err;
-          callback(null);
+          return gm(`${folderPath}/${name} cropped.png`)
+            .background('black')
+            .extent(1080, 1080)
+            .write(`${folderPath}/${name} filled.jpg`, (err) => {
+              if (err) throw err;
+              callback(null);
+            });
         });
     });
 }
 
 function composeCoverArtTransparency({
-  beatName, bpm, key, outputPath, name, folderPath, logoPath,
+  beatName, bpm, key, name, folderPath, logoPath,
 }, callback) {
+  const positionOne = 30;
+  const positionTwo = 160;
+  const largeFont = 36;
+  const smallFont = 22;
+  const distance = 20;
+
   return gm(logoPath)
     .gravity('North')
-    .fontSize(36)
+    .fontSize(largeFont)
+    .font(path.resolve(__dirname, '..', 'public', 'VCR_OSD_MONO_1.001.ttf'))
     .fill('black')
     .gravity('NorthEast')
-    .drawText(10, 270 - 60, beatName)
-    .fontSize(24)
-    .drawText(10, 310 - 60, `${bpm} bpm`)
-    .drawText(10, 340 - 60, key)
-    .drawText(10, 370 - 60, 'prod. barlitxs')
+    .drawText(10, positionTwo, beatName)
+    .fontSize(smallFont)
+    .drawText(10, positionTwo + distance, `${bpm} bpm`)
+    .drawText(10, positionTwo + distance * 2, key)
+    .drawText(10, positionTwo + distance * 3, 'prod. barlitxs')
     .fill('white')
-    .fontSize(36)
-    .drawText(10, 100 - 60, beatName)
-    .fontSize(24)
-    .drawText(10, 140 - 60, `${bpm} bpm`)
-    .drawText(10, 170 - 60, key)
-    .drawText(10, 200 - 60, 'prod. barlitxs')
+    .fontSize(largeFont)
+    .drawText(10, positionOne, beatName)
+    .fontSize(smallFont)
+    .drawText(10, positionOne + distance, `${bpm} bpm`)
+    .drawText(10, positionOne + distance * 2, key)
+    .drawText(10, positionOne + distance * 3, 'prod. barlitxs')
     .gravity('South')
-    .write(`${outputPath}/${name} cover2.png`, (err) => {
+    .write(`${folderPath}/${name} cover3.png`, (err) => {
       if (err) throw err;
-      return gm(logoPath)
-        .gravity('North')
-        .fontSize(36)
-        .fill('black')
-        .gravity('NorthEast')
-        .drawText(10, 270 - 60, beatName)
-        .fontSize(24)
-        .drawText(10, 310 - 60, `${bpm} bpm`)
-        .drawText(10, 340 - 60, key)
-        .drawText(10, 370 - 60, 'prod. barlitxs')
-        .fill('white')
-        .fontSize(36)
-        .drawText(10, 100 - 60, beatName)
-        .fontSize(24)
-        .drawText(10, 140 - 60, `${bpm} bpm`)
-        .drawText(10, 170 - 60, key)
-        .drawText(10, 200 - 60, 'prod. barlitxs')
-        .gravity('South')
-        .write(`${folderPath}/${name} cover3.png`, (err) => {
-          if (err) throw err;
-          callback(null);
-        });
+      callback(null);
     });
 }
 
 function composeFullScreenArt({
   imagePath, folderPath, dimensions, beatName, bpm, key, colorsnumber, red, green, blue, fullscreenLogoPath,
 }, callback) {
+  const positionOne = 100;
+  const positionTwo = 200;
+  const largeFont = 36;
+  const smallFont = 22;
+  const distance = 20;
+
   gm(imagePath)
     .gravity('North')
     .resize(dimensions.width <= dimensions.height
@@ -132,34 +141,85 @@ function composeFullScreenArt({
       ? 1080
       : null)
     .crop(1920, 1080)
-    .fontSize(36)
+    .fontSize(largeFont)
+    .font(path.resolve(__dirname, '..', 'public', 'VCR_OSD_MONO_1.001.ttf'))
     .fill('black')
     .gravity('NorthEast')
     .noise('poisson')
-    .drawText(60, 270, beatName)
-    .fontSize(24)
-    .drawText(60, 310, `${bpm} bpm`)
-    .drawText(60, 340, key)
-    .drawText(60, 370, 'prod. barlitxs')
+    .drawText(60, positionTwo, beatName)
+    .fontSize(smallFont)
+    .drawText(60, positionTwo + distance, `${bpm} bpm`)
+    .drawText(60, positionTwo + distance * 2, key)
+    .drawText(60, positionTwo + distance * 3, 'prod. barlitxs')
     .fill('white')
-    .fontSize(36)
-    .drawText(60, 100, beatName)
-    .fontSize(24)
-    .drawText(60, 140, `${bpm} bpm`)
-    .drawText(60, 170, key)
-    .drawText(60, 200, 'prod. barlitxs')
+    .fontSize(largeFont)
+    .drawText(60, positionOne, beatName)
+    .fontSize(smallFont)
+    .drawText(60, positionOne + distance, `${bpm} bpm`)
+    .drawText(60, positionOne + distance * 2, key)
+    .drawText(60, positionOne + distance * 3, 'prod. barlitxs')
     .colors(colorsnumber)
     .gravity('South')
     .colorize(red, green, blue)
     .background('black')
     .extent(1920, 1080)
-    .write(`${folderPath}/fullscreen.jpg`, function (err) {
+    .write(`${folderPath}/fullscreen-cover.png`, function (err) {
       if (err) return console.dir(arguments);
-      return gm(`${folderPath}/fullscreen.jpg`)
+      return gm(`${folderPath}/fullscreen-cover.png`)
         .composite(fullscreenLogoPath)
-        .write(`${folderPath}/fullscreen.jpg`, function (err) {
+        .write(`${folderPath}/fullscreen.png`, function (err) {
           if (err) return console.dir(arguments);
-          callback(null);
+          return gm(`${folderPath}/fullscreen-cover.png`)
+            .write(`${folderPath}/fullscreen-cover.jpg`, function (err) {
+              if (err) return console.dir(arguments);
+              callback(null);
+            });
+        });
+    });
+}
+
+function composeFullScreenTransparentArt({
+  imagePath, folderPath, beatName, bpm, key, fullscreenLogoPath,
+}, callback) {
+  const positionOne = 100;
+  const positionTwo = 200;
+  const largeFont = 36;
+  const smallFont = 22;
+  const distance = 20;
+
+  gm(imagePath)
+    .gravity('North')
+    .fontSize(largeFont)
+    .font(path.resolve(__dirname, '..', 'public', 'VCR_OSD_MONO_1.001.ttf'))
+    .fill('black')
+    .gravity('NorthEast')
+    .noise('poisson')
+    .drawText(60, positionTwo, beatName)
+    .fontSize(smallFont)
+    .drawText(60, positionTwo + distance, `${bpm} bpm`)
+    .drawText(60, positionTwo + distance * 2, key)
+    .drawText(60, positionTwo + distance * 3, 'prod. barlitxs')
+    .fill('white')
+    .fontSize(largeFont)
+    .drawText(60, positionOne, beatName)
+    .fontSize(smallFont)
+    .drawText(60, positionOne + distance, `${bpm} bpm`)
+    .drawText(60, positionOne + distance * 2, key)
+    .drawText(60, positionOne + distance * 3, 'prod. barlitxs')
+    .gravity('South')
+    .write(`${folderPath}/fullscreen-cover-blank.png`, function (err) {
+      if (err) return console.dir(arguments);
+      return gm(`${folderPath}/fullscreen-cover-blank.png`)
+        .composite(fullscreenLogoPath)
+        .write(`${folderPath}/fullscreen-blank.png`, function (err) {
+          if (err) return console.dir(arguments);
+          return gm(`${folderPath}/fullscreen-cover-blank.png`)
+            .background('black')
+            .extent(1920, 1080)
+            .write(`${folderPath}/fullscreen-blank.jpg`, function (err) {
+              if (err) return console.dir(arguments);
+              callback(null);
+            });
         });
     });
 }
@@ -177,7 +237,7 @@ function composeThumbnail({
     .noise('laplacian')
     .borderColor(`rgb(${colorsArr})`)
     .border(20, 20)
-    .write(`${folderPath}/bordered.jpg`, function (err) {
+    .write(`${folderPath}/bordered.png`, function (err) {
       if (err) return console.dir(arguments);
       return gm(path.resolve(__dirname, '..', 'public', 'typebeat.png'))
         .gravity('North')
@@ -192,12 +252,12 @@ function composeThumbnail({
         .fill('white')
         .stroke('none')
         .drawText(-3, measure('Type Beat') * 1.03, type)
-        .write(`${folderPath}/text.jpg`, (err) => {
+        .write(`${folderPath}/text.png`, (err) => {
           if (err) return console.dir(arguments);
-          return gm(`${folderPath}/text.jpg`)
-            .append(`${folderPath}/bordered.jpg`, true)
+          return gm(`${folderPath}/text.png`)
+            .append(`${folderPath}/bordered.png`, true)
             .noise('laplacian')
-            .write(`${folderPath}/thumb.jpg`, function (err) {
+            .write(`${folderPath}/thumb.png`, function (err) {
               if (err) return console.dir(arguments);
               callback(null);
             });
@@ -205,10 +265,12 @@ function composeThumbnail({
     });
 }
 
-module.exports = (info, callback) => {
+const makeCover = (info, callback) => {
   const {
-    name, imagePath, folderPath, type, outputPath, beatName, bpm, key, logoPath, fullscreenLogoPath,
+    name, folderPath, type, outputPath, bpm, key, logoPath, fullscreenLogoPath,
   } = info;
+  const imagePath = info.imagePath || path.resolve(__dirname, '..', 'public', 'logo.png');
+  beatName = info.beatName.toUpperCase();
   const measure = (str) => (2.2639 * 1080) / (str.length + 5);
   const [red, green, blue] = [randomcolor(), randomcolor(), randomcolor()];
   const colorsnumber = getRndInteger(3, 20);
@@ -228,12 +290,29 @@ module.exports = (info, callback) => {
         info.event.sender.send('working', 'made full screen cover');
         composeCoverArtTransparency({
           // make transparent cover for video stuff
-          beatName, bpm, key, outputPath, name, folderPath, logoPath,
+          beatName, bpm, key, outputPath, name, folderPath, logoPath: info.logoPath_default,
         }, () => {
           info.event.sender.send('working', 'made transparent cover art with logo');
-          callback(null);
+
+          composeFullScreenTransparentArt({
+            imagePath: info.fullscreenLogoPath, folderPath, beatName, bpm, key, fullscreenLogoPath,
+          }, () => {
+            if (logoPath != info.logoPath_defaultlse) {
+              composeCoverArtTransparency({
+                // make transparent cover for video stuff
+                beatName, bpm, key, outputPath, name: `${name} barlogo`, folderPath, logoPath,
+              }, () => {
+                info.event.sender.send('working', 'made transparent cover art with logo');
+                callback(null);
+              });
+            } else {
+              callback(null);
+            }
+          });
         });
       });
     });
   });
 };
+
+module.exports = makeCover;

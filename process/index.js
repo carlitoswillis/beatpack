@@ -6,11 +6,9 @@ const path = require('path');
 const { asyncMap } = require(path.resolve(__dirname, 'imports'));
 
 const handleSingle = (info, callback) => {
-  // console.log(`starting ${info.name}`);
   asyncMap(info, () => {
     callback();
     info.event.sender.send('finished-track-processing', `${info.beatName} processed`);
-    // console.log(`finished ${info.name}`);
   });
 };
 
@@ -27,6 +25,6 @@ const handleFolder = (info, callback) => {
   });
 };
 
-module.exports = (data, callback) => {
-  handleSingle(data, callback);
+module.exports = (info, callback) => {
+  handleSingle(info, callback);
 };

@@ -1,6 +1,7 @@
 /* eslint-disable react/jsx-key */
 /* eslint-disable jsx-a11y/no-static-element-interactions */
 import React, { useState, useEffect } from 'react';
+import CheckBoxes from './checkboxes';
 
 const stop = (e) => {
   e.preventDefault();
@@ -37,7 +38,7 @@ function Video({
             )}
           {close
             ? (<button type="button" onClick={() => removeVid(vid)} className="X">X</button>)
-            : (<button type="button" onClick={() => removeVid(vid)} className="invisibleX">X</button>)}
+            : (<button type="button" onClick={() => {}} className="invisibleX">X</button>)}
         </div>
       </li>
     </>
@@ -45,9 +46,10 @@ function Video({
 }
 
 function VideoDropArea({
-  handleVidDrop, handleVidSelect, info, removeVid,
+  handleVidDrop, handleVidSelect, info, removeVid, handleCheck, mouseIsDown, setMouseIsDown,
 }) {
   const [files, setFiles] = useState([]);
+
   useEffect(() => {
     setFiles(info.vidInfo);
   });
@@ -66,19 +68,27 @@ function VideoDropArea({
       }}
       onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleVidDrop(e); }}
     >
-      <div className="folder dropArea2 grayArea2">
+      <div className="folder dropArea2 grayArea2 ">
         <h3 className="dropTitle">Videos</h3>
-        {' '}
+        <div className="checkboxesToo">
+          <CheckBoxes
+            setMouseIsDown={setMouseIsDown}
+            mouseIsDown={mouseIsDown}
+            handleCheck={handleCheck}
+            info={info}
+            customChecks={['square', 'logo', 'soundwave']}
+          />
+        </div>
         {files && Object.keys(files).length
           ? (
-            <ul className="imagesList">
+            <ul className="videoList">
               {Object.keys(files).map((key, index) => (
                 <Video index={index} vid={files[key]} path={key} removeVid={removeVid} />
               ))}
             </ul>
           )
           : (
-            <div className="emptyDropArea2">
+            <div className="emptyDropArea2 dropArea3">
               <p> Drop Videos/Folders Here </p>
             </div>
           )}

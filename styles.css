@@ -2,6 +2,15 @@
   display: none;
 }
 
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
 .container {
   display: inline-flex;
 }
@@ -113,10 +122,33 @@ h3 {
   background-color: rgb(78, 160, 150);
 }
 
-.checkboxes {
+.checkboxesToo {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  text-align: right;
+  font-size: 3em;
+  font-family: 'Gill Sans MT';
+  font-weight: bold;
+  margin: 53px 0px auto;
+  color: white;
+  background-color:  rgb(32, 48, 62);
+  /* -webkit-app-region: drag; */
+  grid-template-columns: 15fr 85fr;
+  width: 100%;
+  z-index: 5;
+}
+
+.videoChecks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   width: 300px;
+  z-index: 6;
+}
+
+.mainCheckboxes {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  width: 600px;
 }
 
 .features {
@@ -253,7 +285,7 @@ ul {
 }
 
 .files {
-  margin-top: 54px;
+  margin-top: 88px;
 }
 
 .file {
@@ -358,7 +390,7 @@ ul {
   font-family: 'SF Pro';
   font-size: 1em;
   text-align: center;
-  margin: 80px auto;
+  margin: 88px auto;
   color: white;
   background-color: rgb(32, 48, 62);
   padding: 200px 0;
@@ -368,11 +400,15 @@ ul {
   font-family: 'SF Pro';
   font-size: 1em;
   text-align: center;
-  margin: 80px auto;
+  margin: 88px auto;
   color: white;
   background-color: rgb(130, 44, 44);
   background-color: rgb(32, 48, 62);
   padding: 200px 0;
+}
+
+.dropArea3 {
+  margin: 0 auto;
 }
 
 .X {
@@ -484,6 +520,15 @@ button:focus {
   /* border: 2px solid firebrick; */
 }
 
+.videoList {
+  display: grid;
+  margin: 0;
+  z-index: 0;
+  opacity: .8;
+  filter: blur(1px);
+  -webkit-transition: opacity .5s ease-in-out;
+  -webkit-transition: filter .3s ease-in-out;
+}
 
 .imagesList {
   display: grid;
@@ -525,7 +570,7 @@ button:focus {
 .inputArea {
   display: grid;
   position: relative;
-  margin: 0 0;
+  margin: 4px 0;
   top: 54px;
   width: 100%;
 }

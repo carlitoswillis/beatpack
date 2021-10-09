@@ -11,12 +11,9 @@ const stop = (e) => {
 function Project({
   file, path, info, updateTrack, removeTrack,
 }) {
-  const [done, setComplete] = useState(file.done || false);
   const [shown, toggleModal] = useState(false);
   const [close, showClose] = useState(false);
-  useEffect(() => {
-    setComplete(file.done);
-  }, [file]);
+
   return (
     <div
       id={file}
@@ -48,7 +45,7 @@ function Project({
         if (e.target.className === 'file' || e.target.className === 'filedone' || e.target.className === 'file missingData') toggleModal(!shown);
       }}
       >
-        {done
+        {file.done
           ? (
             <div>
               <li className="filedone">
@@ -56,9 +53,9 @@ function Project({
                 {close
                   ? (<button type="button" onClick={() => removeTrack(file)} className="closeX">X</button>)
                   : (<button type="button" onClick={() => removeTrack(file)} className="closeXInvisible">X</button>)}
-                  <audio className="player fdcolor" controls>
-                    <source src={`${file.trackPath}/stems/${file.file}.wav`} type="audio/wav" />
-                  </audio>
+                <audio className="player fdcolor" controls>
+                  <source src={`${file.trackPath}/stems/${file.file}.wav`} type="audio/wav" />
+                </audio>
               </li>
             </div>
           )
@@ -69,9 +66,12 @@ function Project({
                 {close
                   ? (<button type="button" onClick={() => removeTrack(file)} className="closeX">X</button>)
                   : (<button type="button" onClick={() => removeTrack(file)} className="closeXInvisible">X</button>)}
-                  <audio className="player fcolor" controls>
+                {/* <audio className="player fcolor" controls>
                     <source src={`${file.trackPath}/stems/${file.file}.wav`} type="audio/wav" />
-                  </audio>
+                  </audio> */}
+                <audio className="player fcolor" controls>
+                  <source src={`${file.trackPath}/${file.file}.wav`} type="audio/wav" />
+                </audio>
               </li>
             </div>
           )}

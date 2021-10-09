@@ -3,15 +3,23 @@
 const path = require('path');
 const fs = require('fs');
 
+const { floor, random } = Math;
+
 const {
-  mp3, zip, art, mp4, upload, cleanUp,
-} = require(path.resolve(__dirname, 'sanitizeImports'));
+  mp3, zip, art, video, upload, cleanUp,
+} = require(path.resolve(__dirname, 'operations'));
 
 const ops = {
-  mp3, zip, art, mp4, upload, cleanUp,
+  mp3, zip, art, video, upload, cleanUp,
 };
 
-const sanitize = (info) => {
+const initVideoFolders = (outputPath) => {
+  if (!fs.existsSync(`${outputPath}/youtubevideos/`)) fs.mkdirSync(`${outputPath}/youtubevideos/`);
+  if (!fs.existsSync(`${outputPath}/igvideos/`)) fs.mkdirSync(`${outputPath}/igvideos/`);
+  if (!fs.existsSync(`${outputPath}/igvideoswithlogo/`)) fs.mkdirSync(`${outputPath}/igvideoswithlogo/`);
+};
+
+const sanitize = (info, callback = () => {}) => {
   if (!info.event) {
     info.event = { sender: { send: () => {} } };
   }
@@ -34,43 +42,35 @@ const sanitize = (info) => {
   try {
     fs.lstatSync(info.fullscreenLogoPath).isFile();
   } catch (e) {
-    info.fullscreenLogoPath = path.resolve(__dirname, '..', 'public', 'fullscreen.png');
+    info.fullscreenLogoPath = path.resolve(__dirname, '..', 'public', 'fullscreen-logo-default.png');
   }
   info.logoPath = !info.logoPath.includes('.png') ? path.resolve(__dirname, '..', 'public', 'logo.png') : info.logoPath;
+  info.logoPath_default = path.resolve(__dirname, '..', 'public', 'logo.png');
   info.fullscreenLogoPath = !info.fullscreenLogoPath.includes('.png') ? path.resolve(__dirname, '..', 'public', 'fullscreen.png') : info.fullscreenLogoPath;
-  info.imagePath = info.files.images[Math.floor(Math.random() * Math.floor(info.files.images.length))];
-  info.vidPath = info.files.videos[Math.floor(Math.random() * Math.floor(info.files.videos.length))];
-  info.tasks = ['mp3', 'zip', 'art', 'mp4', 'upload', 'cleanUp']
+  info.fullscreenLogoPath_default = path.resolve(__dirname, '..', 'public', 'fullscreen-logo-default.png');
+  info.imagePath = info.files.images[floor(random() * floor(info.files.images.length))];
+  info.vidPath = info.files.videos[floor(random() * floor(info.files.videos.length))];
+  info.tasks = Object.keys(ops)
     .filter((x) => Object.keys(info)
       .includes(x) && info[x])
     .map((x) => [x, ops[x]]);
   info.tags = info.tags.split(', ').join(',').split(',');
-  info.dates = new Array(7)
-    .fill(new Date(info.startDate || new Date()))
-    .map((date) => {
-      date.setHours(info.startTime
-        .split(':')[0],
-      info.startTime
-        .split(':')[1], 0, 0);
-      date.setDate(date.getDate() + 1);
-      const time = date.toISOString();
-      return time;
-    });
   info.name = info.file;
   info.videoPath = `${info.folderPath}/${info.name}.mp4`;
-  info.date = info.dates.shift();
   info.beatName = info.beatName || 'untitled';
-  info.bpm = info.bpm || '?';
-  info.key = info.key || '?';
-  info.producer = info.producer || '?';
-  info.title = `${info.title} ${info.beatName}`;
+  info.bpm = info.bpm || '';
+  info.key = info.key || '';
+  info.producer = info.producer || '';
+  info.title = `${info.title} - ${info.beatName}${info.producer ? ` (${info.producer})` : ''}`;
   const titleArr = info.title.split('');
   while (titleArr.length > 100) {
     titleArr.pop();
-    info.title = titleArr.join('');
   }
+  info.title = titleArr.join('');
   info.searchKeyword = `${info.beatName.split(' ').join('%20')}%20${info.type.split(' ').join('%20')}`;
-  info.vidDescription = `${info.title} available for download\nFree Download or Purchase: https://player.beatstars.com/?storeId=71006&search_keyword=${info.searchKeyword}\n\nig: http://instagram.com/barlitxs\ntwitter: http://twitter.com/barlitxs\nsoundcloud: http://soundcloud.com/barlitxs\n\n${info.title}\nprod. barlitxs\n\n${info.description || ''}\n\n${info.tags}`;
+  info.vidDescription = `${info.title} available for instant download \nFree Trial Download or Purchase: -InsertLinkHere-\n\nCurrent Deal - Buy 2 Beats get 1 Free\n\nig: http://instagram.com/barlitxs\ntwitter: http://twitter.com/barlitxs\nsoundcloud: http://soundcloud.com/barlitxs\n\n${info.title}\nprod. barlitxs\n\n${info.description || ''}\n\n`;
+  initVideoFolders(info.outputPath);
+  callback(null, info);
   return info;
 };
 

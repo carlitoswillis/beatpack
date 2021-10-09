@@ -55,20 +55,21 @@ const callbackHandler = (req, res, callback) => {
   const { code } = req.query;
   if (code) {
     // Get an access token based on our OAuth code
+    console.log('here');
     oAuth2Client.getToken(code, (err, tokens) => {
       if (err) {
         console.log('Error authenticating');
         console.log(err);
       } else {
         console.log('Successfully authenticated');
-        const tokenJson = fs.createWriteStream('./server/youtube/tokens.json');
+        const tokenJson = fs.createWriteStream('./youtube/tokens.json');
         tokenJson.write(JSON.stringify({ tokens }), () => {
           oAuth2Client.setCredentials(tokens, (err, data) => {
             if (err) throw err;
             console.log(data);
           });
           authed = true;
-          res.redirect('http://localhost:5000/oath2callback');
+          res.redirect('http://localhost:5000/');
           callback();
         });
       }
