@@ -316,3 +316,4 @@ const makeCover = (info, callback) => {
 };
 
 module.exports = makeCover;
+// module.exports = (info, callback) => callback(null);

@@ -4,61 +4,69 @@ const fs = require('fs');
 const { getVideoDurationInSeconds } = require('get-video-duration');
 const getSongDurationInSeconds = require('./getSongDurationInSeconds');
 
-// eslint-disable-next-line import/no-dynamic-require
-const asyncMap = require(path.resolve(__dirname, 'asyncMapMax'));
-
 const logError = (err, location = 'ffmpeg') => fs.writeFileSync(path.resolve(__dirname, '..', 'errorlogs', `${new Date().getTime().toString()}`), JSON.stringify({ location, err }));
 
 const getRandomInt = (max) => Math.floor(Math.random() * Math.floor(max));
 
-const addSongToLoopedVideo = ({ folderPath, name }, callback) => {
+const getPathFromTaskName = ({ taskName, folderPath }) => `${folderPath}/${taskName}.m4v`;
+const getChoppedVideoPath = ({ folderPath, name }) => `${folderPath}/${name}-chopped.m4v`;
+const getWavPath = ({ folderPath, name }) => `${folderPath}/${name}.wav`;
+const getDubbedVideoPath = ({ folderPath, name }) => `${folderPath}/${name}-dubbed.m4v`;
+const getScaledVidPath = ({ folderPath, name }) => `${folderPath}/${name}-scaled.m4v`;
+const getSquareCoverImagePath = ({ folderPath, name }) => `${folderPath}/${name} cover3.png`;
+const getIGOutputPath = ({ outputPath, name }) => `${outputPath}/igvideos/${name}-ig.m4v`;
+const getIGOutputPathWithLogo = ({ outputPath, name }) => `${outputPath}/igvideoswithlogo/${name}-ig_with_logo.m4v`;
+const getYTOutPath = ({ outputPath, name }) => `${outputPath}/youtubevideos/${name}-YT.m4v`;
+const getBlankFullScreenPNG = ({ folderPath }) => `${folderPath}/fullscreen-cover-blank.png`;
+
+const addSongToLoopedVideo = ({ inputVidPath, wavPath, vidOutPath }, callback) => {
   cp.exec(`/usr/local/bin/ffmpeg \
-  -stream_loop -1 -i "${folderPath}/${name}-chopped.m4v" \
-  -itsoffset 00:00:0.000 -i "${folderPath}/${name}.wav" -shortest \
+  -stream_loop -1 -i "${inputVidPath}" \
+  -itsoffset 00:00:0.000 -i "${wavPath}" -shortest \
   -c:v copy -map 0:v:0 -map 1:a:0 -b:a 384k\
-  "${folderPath}/${name}-dubbed.m4v" -y`, callback);
+  "${vidOutPath}" -y`, (err, stdout) => {
+    // if err ? log it probably...
+    // the std out in these ffmpeg cases is particularly useful as opposed to the error itself
+    callback(err, vidOutPath);
+  });
 };
 
-const rescaleVideoAsSquare = ({ folderPath, name }, callback) => {
+const rescaleVideoAsSquare = ({ inputVidPath, vidOutPath }, callback) => {
   cp.exec(`/usr/local/bin/ffmpeg \
-  -i "${folderPath}/${name}-dubbed.m4v" \
-  -vf "scale=-2:1000,crop=1000:1000" -c:a copy "${folderPath}/${name}-scaled.m4v" -y`, callback);
+  -i "${inputVidPath}" \
+  -vf "scale=-2:1000,crop=1000:1000" \
+  -c:a copy "${vidOutPath}" -y`, (err, stdout) => {
+    // if err ? log it probably...
+    // the std out in these ffmpeg cases is particularly useful as opposed to the error itself
+    callback(err, vidOutPath);
+  });
 };
+
+// const addTransparentOverlayToVideo = ({
+//   inputVidPath, imagePathInput, audioDuration, vidOutPath,
+// }, callback) => {
+//   cp.exec(`/usr/local/bin/ffmpeg \
+//     -i "${inputVidPath}" \
+//     -i "${imagePathInput}" \
+//     -filter_complex \
+//     "overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2" \
+//     -t 00:00:${audioDuration} \
+//     -c:a copy "${vidOutPath}" -y`, callback);
+// };
 
 const addTransparentOverlayToVideo = ({
-  folderPath, name, audioDuration, outputPath,
+  inputVidPath, imagePathInput, vidOutPath,
 }, callback) => {
   cp.exec(`/usr/local/bin/ffmpeg \
-    -i "${folderPath}/${name}-scaled.m4v" \
-    -i "${folderPath}/${name} cover3.png" \
+    -i "${inputVidPath}" \
+    -i "${imagePathInput}" \
     -filter_complex \
     "overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2" \
-    -t 00:00:${audioDuration} \
-    -c:a copy "${outputPath}/igvideos/${name}-ig.m4v" -y`, callback);
+    -c:a copy "${vidOutPath}" -y`, callback);
 };
 
-const addLogoToVideo = ({
-  folderPath, name, audioDuration, outputPath,
-}, callback) => {
-  cp.exec(`/usr/local/bin/ffmpeg \
-  -i "${folderPath}/${name}-scaled.m4v" \
-  -i "${folderPath}/${name} barlogo cover3.png" \
-  -filter_complex \
-  "overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2" \
-  -t 00:00:${audioDuration} \
-  -c:a copy "${outputPath}/igvideoswithlogo/${name}-ig_with_logo.m4v" -y`, callback);
-};
-
-const makeWideVideo = ({
-  folderPath, name, outputPath,
-}, callback) => {
-  cp.exec(`/usr/local/bin/ffmpeg \
-  -i "${folderPath}/${name}-dubbed.m4v" \
-  -i "${folderPath}/fullscreen-cover-blank.png" \
-  -filter_complex \
-  "overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2" \
-  -c:a copy "${outputPath}/youtubevideos/${name}-YT.m4v" -y`, callback);
-};
+const addLogoToVideo = addTransparentOverlayToVideo;
+const makeWideVideo = addTransparentOverlayToVideo;
 
 const compileVideoTasks = [
   ['addSongToLoopedVideo', addSongToLoopedVideo],
@@ -103,9 +111,12 @@ const compileVideo = ({
 };
 
 const chopVideo = ({
-  usedTimes, audioDuration, videoDuration, shortSectionAsTime,
-  unusedTimes, chops, vidPath, folderPath, name, outputPath, info,
+  audioDuration, videoDuration, shortSectionAsTime,
+  vidPath, folderPath, name, info,
 }, callback) => {
+  const chops = [];
+  const usedTimes = new Set();
+  const unusedTimes = new Set(new Array(Math.floor(videoDuration)).map((a, i) => i));
   let timesUnchanged = 0;
   while (timesUnchanged < 20) {
     if (!(usedTimes.size < Math.min(audioDuration, videoDuration))) {
@@ -132,9 +143,7 @@ const chopVideo = ({
   cp.exec(commandOne, (err) => {
     if (err) fs.writeFileSync(path.resolve(__dirname, '..', 'errorlogs', `${new Date().getTime().toString()}`), JSON.stringify({ location: 'ffmpeg', err }));
     info.event.sender.send('working', 'chopped source');
-    compileVideo({
-      folderPath, name, outputPath, info, audioDuration,
-    }, callback);
+    callback(err, `"${folderPath}/${name}-chopped.m4v"`);
   });
 };
 
@@ -146,28 +155,24 @@ const makeVideoWithSourceVideo = (info, callback) => {
   getSongDurationInSeconds({
     folderPath, name, bpm, totalBars,
   }, (err, audioDuration) => {
-    const chops = [];
-    const usedTimes = new Set();
     const barsForChopping = 2;
     getVideoDurationInSeconds(vidPath).then((videoDuration) => {
-      const unusedTimes = new Set(new Array(Math.floor(videoDuration)).map((a, i) => i));
       getSongDurationInSeconds({
         folderPath, name, bpm, barsForChopping,
       }, (err, shortSectionAsTime) => {
         if (err) throw err;
         chopVideo({
-          usedTimes,
           audioDuration,
           videoDuration,
           shortSectionAsTime,
-          unusedTimes,
-          chops,
           vidPath,
           folderPath,
           name,
           outputPath,
           info,
-        }, callback);
+        }, (err, vidOutPath) => {
+          callback(err, vidOutPath);
+        });
       });
     });
   });
@@ -175,28 +180,61 @@ const makeVideoWithSourceVideo = (info, callback) => {
 
 const makeVideoWithImage = (info, callback) => {
   const {
-    folderPath, name, outputPath, bpm, imagePath,
+    folderPath, name, outputPath, imagePath, vidOutPath,
   } = info;
-  const bars = 32;
-  getSongDurationInSeconds({
-    folderPath, name, bpm, bars,
-  }, (err, audioDuration) => {
-    const imageSource = `${folderPath}/fullscreen-${imagePath ? 'cover' : 'blank'}.jpg`;
-    cp.exec(`/usr/local/bin/ffmpeg -i "${imageSource}" -i "${outputPath}/${name}.wav" -b:a 384k "${folderPath}/${name}-chopped.m4v" -y`, (err) => {
-      if (err) fs.writeFileSync(path.resolve(__dirname, '..', 'errorlogs', `${new Date().getTime().toString()}`), JSON.stringify({ location: 'ffmpeg', err }));
-      callback();
-    });
+  const imageSource = `${folderPath}/fullscreen-${imagePath ? 'cover' : 'blank'}.jpg`;
+  cp.exec(`/usr/local/bin/ffmpeg -i "${imageSource}" -i "${outputPath}/${name}.wav" -b:a 384k "${vidOutPath}" -y`, (err) => {
+    if (err) fs.writeFileSync(path.resolve(__dirname, '..', 'errorlogs', `${new Date().getTime().toString()}`), JSON.stringify({ location: 'ffmpeg', err }));
+    callback(err, vidOutPath);
   });
 };
 
-const emptyFunc = (info, cb) => {
+const moveToOutputPath = ({ inputVidPath, name, outputPath }, callback) => {
+  fs.copyFileSync(inputVidPath, `${outputPath}/${name}-${new Date().getTime()}.m4v`);
+  callback(null);
+};
+
+const donothing = (info, cb) => {
   cb();
 };
 
+const iterateThroughTasks = (info, callback) => {
+  const { tasks, folderPath } = info;
+  const [taskName, task] = tasks.pop();
+  info.event.sender.send('working', `working on ${taskName}`);
+  task({ ...info, vidOutPath: getPathFromTaskName({ folderPath, taskName }) }, (err, out) => {
+    console.log(info.vidOutPath, out, taskName);
+    if (err) {
+      callback(err);
+    }
+    info.event.sender.send('task-finished', `${taskName}`);
+    if (!tasks.length) {
+      callback(null);
+    } else {
+      iterateThroughTasks({ ...info, inputVidPath: out }, callback);
+    }
+  });
+};
+
 module.exports = (info, callback) => {
-  const tasks = [['wide', info.files.videos.length ? makeVideoWithSourceVideo : makeVideoWithImage], ['no logo', emptyFunc]].concat([['square', emptyFunc], ['logo', emptyFunc], ['soundwave', emptyFunc]].filter((task) => info[task[0]]));
-  const vidInfo = { ...info, tasks };
-  asyncMap(vidInfo, () => {
-    callback();
+  const tasks = [['makeVideoWithImage', makeVideoWithImage]];
+  if (info.files.videos.length) {
+    tasks.pop();
+    [['wide', makeVideoWithSourceVideo], ['looping video', addSongToLoopedVideo]].forEach((tuple) => tasks.push(tuple));
+  }
+  [['square', rescaleVideoAsSquare], ['logo', addLogoToVideo], ['soundwave', donothing]].filter((task) => info[task[0]])
+    .forEach((tuple) => tasks.push(tuple));
+  tasks.push(['finishing', moveToOutputPath]);
+  const vidInfo = {
+    ...info,
+    tasks: tasks.reverse(),
+    wavPath: getWavPath(info),
+    vidOutPath: `${info.name}.m4v`,
+    imagePathInput: info.square ? getSquareCoverImagePath(info) : getBlankFullScreenPNG(info),
+  };
+  console.log(tasks);
+  iterateThroughTasks(vidInfo, (err) => {
+    if (err) throw err;
+    callback(null);
   });
 };
