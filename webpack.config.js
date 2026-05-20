@@ -1,13 +1,19 @@
 const path = require('path');
+const webpack = require('webpack');
 
 module.exports = {
-  target: 'electron-main',
+  target: 'electron-renderer',
   mode: 'production',
   entry: './app/beatpack.jsx',
   output: {
     filename: 'beatpack.js',
     path: path.resolve(__dirname /* 'public' */),
   },
+  plugins: [
+    new webpack.DefinePlugin({
+      global: 'window',
+    }),
+  ],
   module: {
     rules: [
       {

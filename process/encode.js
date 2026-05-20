@@ -2,6 +2,8 @@ const fs = require('fs');
 const cp = require('child_process');
 const path = require('path');
 
+const LAME_PATH = '/opt/homebrew/bin/lame';
+
 const encode = (info, callback) => {
   const { name, folderPath, outputPath } = info;
   // if the there is no stems folder, consider the current folder the stems folder
@@ -9,7 +11,7 @@ const encode = (info, callback) => {
   fs.copyFileSync(stemPath, `${outputPath}/${name}.wav`);
 
   // mp3ify the wav file, and then copy it to the current folder
-  cp.exec(`/usr/local/bin/lame "${stemPath}" "${outputPath}/${name}.mp3" -b 320 --disptime 1`, (errLame) => {
+  cp.exec(`${LAME_PATH} "${stemPath}" "${outputPath}/${name}.mp3" -b 320 --disptime 1`, (errLame) => {
     if (errLame) fs.writeFileSync(path.resolve(__dirname, '..', 'errorlogs', `${new Date().getTime().toString()}`), JSON.stringify({ location: 'encode', errLame }));
     if (errLame) callback(errLame);
     fs.copyFile(`${outputPath}/${name}.mp3`, `${folderPath}/${name}.mp3`, (errCopyMP3) => {

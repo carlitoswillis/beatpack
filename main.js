@@ -15,6 +15,8 @@ const { app, BrowserWindow } = electron;
 
 let mainWindow;
 
+app.disableHardwareAcceleration();
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     minWidth: 900,
@@ -23,6 +25,7 @@ function createWindow() {
     maxHeight: 700,
     webPreferences: {
       nodeIntegration: true,
+      contextIsolation: false,
       webviewTag: true,
       enableRemoteModule: true,
     },
