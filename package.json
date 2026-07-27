@@ -25,7 +25,7 @@
     "electron-reload": "^1.5.0",
     "electron-tabs": "^0.15.0",
     "electron-unhandled": "^3.0.2",
-    "express": "^4.17.1",
+    "express": "^4.22.2",
     "fluent-ffmpeg": "^2.1.2",
     "get-video-duration": "^3.0.1",
     "gm": "^1.23.1",
