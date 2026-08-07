@@ -51,7 +51,7 @@
     "@babel/preset-react": "^7.10.4",
     "babel-loader": "^8.1.0",
     "css-loader": "^4.2.1",
-    "electron": "^13.0.0",
+    "electron": "^39.8.10",
     "eslint": "^7.32.0",
     "eslint-config-airbnb": "^18.2.0",
     "eslint-plugin-import": "^2.22.0",
