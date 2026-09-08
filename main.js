@@ -36,7 +36,7 @@ function createWindow() {
     protocol: 'file:',
     slashes: true,
   }));
-  mainWindow.webContents.openDevTools();
+  if (process.env.NODE_ENV === 'development') mainWindow.webContents.openDevTools();
   // mainWindow.loadURL('http://localhost:5000/beatpack.html');
   mainWindow.on('closed', () => {
     mainWindow = null;

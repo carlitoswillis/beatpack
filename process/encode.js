@@ -11,7 +11,7 @@ const encode = (info, callback) => {
   fs.copyFileSync(stemPath, `${outputPath}/${name}.wav`);
 
   // mp3ify the wav file, and then copy it to the current folder
-  cp.exec(`${LAME_PATH} "${stemPath}" "${outputPath}/${name}.mp3" -b 320 --disptime 1`, (errLame) => {
+  cp.execFile(LAME_PATH, [stemPath, `${outputPath}/${name}.mp3`, '-b', '320', '--disptime', '1'], (errLame) => {
     if (errLame) fs.writeFileSync(path.resolve(__dirname, '..', 'errorlogs', `${new Date().getTime().toString()}`), JSON.stringify({ location: 'encode', errLame }));
     if (errLame) callback(errLame);
     fs.copyFile(`${outputPath}/${name}.mp3`, `${folderPath}/${name}.mp3`, (errCopyMP3) => {

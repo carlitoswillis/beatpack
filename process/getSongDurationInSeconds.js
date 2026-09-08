@@ -12,7 +12,7 @@ const getLengthOfBars = (bpm, bars = 24) => bars * getLengthOfABar(bpm);
 const getSongDurationInSeconds = ({
   folderPath, name, bpm, bars,
 }, callback) => {
-  cp.exec(`${FFPROBE_PATH} -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${folderPath}/${name}.wav"`, (err, stdout) => {
+  cp.execFile(FFPROBE_PATH, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', `${folderPath}/${name}.wav`], (err, stdout) => {
     if (err) {
       fs.writeFileSync(path.resolve(__dirname, '..', 'errorlogs', `${new Date().getTime().toString()}`), JSON.stringify({ location: 'ffmpeg', err }));
       return callback(null, Math.min(60, getLengthOfBars(parseFloat(bpm), bars)));
