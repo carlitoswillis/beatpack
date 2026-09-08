@@ -1,3 +1,13 @@
+/*!
+ * dragula v3.7.2 -- stylesheet
+ * Vendored verbatim from the dragula npm package (dist/dragula.css);
+ * verified byte-identical with `diff`. Attribution restored: the copy
+ * checked in here had no license header.
+ *
+ * Copyright (c) 2015-2016 Nicolas Bevacqua
+ * Released under the MIT License.
+ * https://github.com/bevacqua/dragula
+ */
 .gu-mirror {
   position: fixed !important;
   margin: 0 !important;

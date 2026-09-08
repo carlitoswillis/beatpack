@@ -1,3 +1,13 @@
+/*!
+ * electron-tabs v0.15.0 -- stylesheet
+ * Vendored from the electron-tabs npm package (electron-tabs.css);
+ * verified identical apart from line endings (upstream is CRLF).
+ * Attribution restored: the copy checked in here had no license header.
+ *
+ * Copyright (c) 2016 Thomas Brouard
+ * Released under the MIT License.
+ * https://github.com/brrd/electron-tabs
+ */
 .etabs-tabgroup {
   width: 100%;
   height: 32px;
