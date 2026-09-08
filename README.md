@@ -9,12 +9,12 @@ Created using Electron, and React this desktop application enhances the workflow
 This app relies on several media processing binaries. On macOS, the easiest way to install them is via [Homebrew](https://brew.sh/):
 
 ```bash
-brew install ffmpeg graphicsmagick lame
+brew install ffmpeg graphicsmagick
 ```
 
 ### 2. Environment
 - **Node.js**: v12.x is recommended, but v17+ works with the legacy OpenSSL provider flag (included in scripts).
-- **Architecture**: macOS on Apple Silicon only — `process/ffmpeg.js`, `process/encode.js`, and `process/getSongDurationInSeconds.js` hardcode `/opt/homebrew/bin/...` paths for ffmpeg/ffprobe/lame, so Intel Mac, Windows, and Linux builds will not find those binaries.
+- **Architecture**: macOS on Apple Silicon only — `process/ffmpeg.js`, `process/encode.js`, and `process/getSongDurationInSeconds.js` hardcode `/opt/homebrew/bin/...` paths for ffmpeg/ffprobe, so Intel Mac, Windows, and Linux builds will not find those binaries.
 
 ## Installing
 
@@ -46,21 +46,22 @@ BeatPack itself is released under the ISC License -- see [LICENSE](LICENSE).
 
 ### Media binaries are NOT bundled -- and must stay that way
 
-BeatPack executes `ffmpeg`, `ffprobe`, `lame` and GraphicsMagick (`gm`) by
+BeatPack executes `ffmpeg`, `ffprobe` and GraphicsMagick (`gm`) by
 absolute path via `child_process.execFile`. It **ships none of them**. You
 install them yourself with the `brew install` line above. That distinction
 is doing real legal work:
 
 - The Homebrew ffmpeg this project targets is built `--enable-gpl
   --enable-version3`, i.e. **GPLv3**.
-- LAME is **LGPLv2** (`/opt/homebrew/opt/lame/COPYING` is the GNU Library
-  General Public License, Version 2).
+- LAME is no longer invoked as a separate binary: mp3 encoding now goes
+  through ffmpeg's `libmp3lame`, which is the LAME library linked into
+  ffmpeg (LGPLv2), not a different encoder.
 - GraphicsMagick is MIT-style; the `gm` npm wrapper is MIT.
 
 Because the app only *invokes* user-installed binaries and distributes
 none of them, no copyleft obligation attaches to BeatPack.
 
-> **The line not to cross:** copying ffmpeg (or lame) into
+> **The line not to cross:** copying ffmpeg into
 > `release-builds/`, into the packaged `.app`, or anywhere else that gets
 > distributed would make the entire distributed Electron application
 > **GPLv3-encumbered**. Do not vendor these binaries. If bundling ever
