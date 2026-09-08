@@ -20,11 +20,25 @@ const logError = (err, location = 'ffmpeg') => fs.writeFileSync(path.resolve(__d
 
 const getRandomInt = (max) => Math.floor(Math.random() * Math.floor(max));
 
-const addSongToLoopedVideo = ({ folderPath, name }, callback) => {
+// `-shortest` does NOT bound `-stream_loop -1`: measured, a 3s song against a
+// 4s clip produced a 151.10s video stream against a 3.00s audio stream, and the
+// mismatch propagated through every downstream stage. The loop has to be bounded
+// explicitly with `-t`, which is why audioDuration is threaded in here.
+//
+// Audio encoder is explicit. Previously `-b:a 384k` with no `-c:a` fell through
+// to the ipod muxer's default (native aac), which cannot reach 384k -- measured
+// ask -> actual on native aac: 192k -> 192083, 256k -> 240027, 320k -> 232947,
+// 384k -> 225712 (note it goes DOWN, not up). aac_at honours the ask exactly up
+// to 320k (320k -> 320581) and clamps rather than degrading (384k -> 320581).
+// aac_at is macOS-only; portable fallback is `-c:a aac -b:a 192k`. That is
+// already moot -- FFMPEG_PATH below pins this to Apple Silicon macOS.
+const addSongToLoopedVideo = ({ folderPath, name, audioDuration }, callback) => {
   cp.execFile(FFMPEG_PATH, [
     '-stream_loop', '-1', '-i', `${folderPath}/${name}-chopped.m4v`,
-    '-itsoffset', '00:00:0.000', '-i', `${folderPath}/${name}.wav`, '-shortest',
-    '-c:v', 'copy', '-map', '0:v:0', '-map', '1:a:0', '-b:a', '384k',
+    '-itsoffset', '00:00:0.000', '-i', `${folderPath}/${name}.wav`,
+    '-t', `${audioDuration}`, '-shortest',
+    '-c:v', 'copy', '-map', '0:v:0', '-map', '1:a:0',
+    '-c:a', 'aac_at', '-b:a', '320k',
     `${folderPath}/${name}-dubbed.m4v`, '-y',
   ], callback);
 };
@@ -86,7 +100,7 @@ const compileVideo = ({
   folderPath, name, outputPath, info, audioDuration,
 }, callback) => {
   info.event.sender.send('working', 'add track to vid');
-  addSongToLoopedVideo({ folderPath, name }, (addSongErr) => {
+  addSongToLoopedVideo({ folderPath, name, audioDuration }, (addSongErr) => {
     if (addSongErr) logError(addSongErr, 'ffmpeg');
 
     info.event.sender.send('working', 'resize video to square');
@@ -198,8 +212,18 @@ const makeVideoWithImage = (info, callback) => {
     folderPath, name, bpm, bars,
   }, (err, audioDuration) => {
     const imageSource = `${folderPath}/fullscreen-${imagePath ? 'cover' : 'blank'}.jpg`;
+    // A still image with no `-loop 1 -framerate` yields a ONE-FRAME video:
+    // measured nb_frames=1, video duration=0.040000, with the full song
+    // attached and exit code 0. It failed silently. `-loop 1 -framerate 30`
+    // makes the image a real video stream and `-t` bounds it to the song.
+    // Encoder made explicit for the same reason as addSongToLoopedVideo above.
     cp.execFile(FFMPEG_PATH, [
-      '-i', imageSource, '-i', `${outputPath}/${name}.wav`, '-b:a', '384k', `${folderPath}/${name}-chopped.m4v`, '-y',
+      '-loop', '1', '-framerate', '30', '-i', imageSource,
+      '-i', `${outputPath}/${name}.wav`,
+      '-t', `${audioDuration}`, '-shortest',
+      '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac_at', '-b:a', '320k',
+      `${folderPath}/${name}-chopped.m4v`, '-y',
     ], (err) => {
       if (err) fs.writeFileSync(path.resolve(__dirname, '..', 'errorlogs', `${new Date().getTime().toString()}`), JSON.stringify({ location: 'ffmpeg', err }));
       callback();
