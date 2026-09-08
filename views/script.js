@@ -1,3 +1,29 @@
+/*!
+ * bootstrap-tagsinput
+ * Vendored third-party code. Upstream:
+ *   https://github.com/bootstrap-tagsinput/bootstrap-tagsinput
+ *   (originally git://github.com/timschlechter/bootstrap-tagsinput.git)
+ *
+ * Copyright (c) 2013 Tim Schlechter
+ * Released under the MIT License.
+ *
+ * This header was reconstructed: the copy checked in here had its
+ * attribution stripped, so it carried no copyright or license notice at
+ * all. License and copyright holder were confirmed against the upstream
+ * repository's package.json ("license": "MIT") and LICENSE file
+ * ("Copyright (c) 2013 Tim Schlechter").
+ *
+ * VERSION IS UNKNOWN and cannot be recovered from this file, because the
+ * version banner was among what was stripped. Diffing against upstream
+ * master shows this copy predates several later additions (focusClass,
+ * triggerChange, isInit, pasteDelimeterForNewLine), so it is an older
+ * revision, not current master. It also differs in defaults
+ * (cancelConfirmKeysOnEmpty: true here vs false upstream), so it may
+ * additionally be locally modified.
+ *
+ * If this file survives, replacing it with a pinned npm dependency would
+ * be better than maintaining a vendored fork of unknown provenance.
+ */
 (function ($) {
     "use strict";
   
