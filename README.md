@@ -38,6 +38,74 @@ In a new terminal tab, run:
 npm start
 ```
 
+## License
+
+BeatPack itself is released under the ISC License -- see [LICENSE](LICENSE).
+
+## Third-party components
+
+### Media binaries are NOT bundled -- and must stay that way
+
+BeatPack executes `ffmpeg`, `ffprobe`, `lame` and GraphicsMagick (`gm`) by
+absolute path via `child_process.execFile`. It **ships none of them**. You
+install them yourself with the `brew install` line above. That distinction
+is doing real legal work:
+
+- The Homebrew ffmpeg this project targets is built `--enable-gpl
+  --enable-version3`, i.e. **GPLv3**.
+- LAME is **LGPLv2** (`/opt/homebrew/opt/lame/COPYING` is the GNU Library
+  General Public License, Version 2).
+- GraphicsMagick is MIT-style; the `gm` npm wrapper is MIT.
+
+Because the app only *invokes* user-installed binaries and distributes
+none of them, no copyleft obligation attaches to BeatPack.
+
+> **The line not to cross:** copying ffmpeg (or lame) into
+> `release-builds/`, into the packaged `.app`, or anywhere else that gets
+> distributed would make the entire distributed Electron application
+> **GPLv3-encumbered**. Do not vendor these binaries. If bundling ever
+> becomes a requirement, that is a licensing decision to make
+> deliberately, not a build-script convenience.
+
+For the same reason `get-video-duration` was removed: it pulled
+`@ffprobe-installer/ffprobe` (LGPL-2.1), whose optional dependencies are
+**prebuilt ffprobe binaries**, which would have been bundled.
+
+Standing check -- no tracked file should be a native executable:
+
+```bash
+git ls-files | xargs file | grep -iE 'Mach-O|ELF |PE32'   # must print nothing
+```
+
+### Consequence: macOS / Apple Silicon only
+
+Those absolute `/opt/homebrew/bin/...` paths are hardcoded in
+`process/ffmpeg.js`, `process/encode.js` and
+`process/getSongDurationInSeconds.js`. The packaged app therefore only
+works on Apple Silicon macOS, whatever `package-win` and `package-linux`
+emit.
+
+### Fonts and vendored assets
+
+- `public/bebas_neue/` -- Bebas Neue, SIL Open Font License 1.1
+  (`OFL.txt`, `OFL-FAQ.txt` ship alongside it).
+- `public/VCR_OSD_MONO_1.001.ttf` -- **license unresolved.** The font
+  carries no copyright, license description or license URL in its own
+  `name` table, and no license file was ever committed beside it. See
+  `public/VCR_OSD_MONO.LICENSE-STATUS.txt`. This needs a human decision.
+- `views/script.js` -- bootstrap-tagsinput, MIT, Copyright (c) 2013 Tim
+  Schlechter. Vendored; attribution was stripped and has been restored.
+- `public/dragula.css`, `public/electron-tabs.css` -- MIT stylesheets
+  vendored from those packages; attribution restored.
+
+### ffmpeg recipes
+
+Scratch ffmpeg commands live in `docs/ffmpeg-recipes.sh`. They previously
+used the non-free `libfdk_aac` encoder, which requires an
+`--enable-nonfree` ffmpeg build that is **not redistributable**. They now
+use the free `aac_at` (AudioToolbox) encoder; the rationale and
+measurements are in that file's header.
+
 ## Built With
 
 * [node.js](https://nodejs.org/en/)
