@@ -13,3 +13,31 @@ ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
 WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+
+Third-party components
+======================
+
+This repository redistributes third-party material that is NOT covered by
+the ISC grant above. Each keeps its own terms:
+
+  views/script.js          bootstrap-tagsinput, Copyright (c) 2013 Tim
+                           Schlechter, MIT License. See the header of that
+                           file; the vendored copy had its attribution
+                           stripped and it was reconstructed from upstream.
+
+  public/bebas_neue/       SIL Open Font License 1.1. Ships OFL.txt and
+                           OFL-FAQ.txt alongside the font.
+
+  public/VCR_OSD_MONO_1.001.ttf
+                           LICENSE UNRESOLVED. The file carries no license
+                           in a sibling file and none inside the font's own
+                           name table (no nameID 0, 13 or 14). Its terms
+                           have deliberately not been guessed. See
+                           public/VCR_OSD_MONO.LICENSE-STATUS.txt before
+                           redistributing this repository.
+
+The application invokes ffmpeg, ffprobe and GraphicsMagick as external
+programs by absolute path. They are not bundled or linked, so their
+licenses do not extend to this software as distributed. Bundling any of
+them into a packaged build would change that analysis.
