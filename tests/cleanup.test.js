@@ -1,33 +1,35 @@
-/* eslint-disable no-undef */
-const cleanUp = require('../process/cleanUp');
+const fs = require('fs');
 const sanitize = require('../process/sanitize');
-const testInfo = require('../settings/info');
+const cleanUp = require('../process/cleanUp');
+const { makeFixture } = require('./helpers/fixture');
 
-const event = { sender: { send: () => {} } };
-
+let fixture;
 let single;
 
 beforeEach(() => {
-  const { projects } = testInfo.files;
-  const beat = projects.pop();
-  single = { ...testInfo, ...beat, event };
-  single.delete = true;
-  single.cleanUp = true;
-  single = sanitize(single);
+  fixture = makeFixture();
+  single = sanitize({ ...fixture.info, delete: true, cleanUp: true });
 });
 
-jest.setTimeout.Timeout = 100000000;
-describe('take fullscreen image and mp3 file to create video', () => {
-  test('the data is processed', (done) => {
-    jest.setTimeout(10 ** 5);
-    function callback() {
+afterEach(() => fixture.cleanup());
+
+describe('clean intermediate files out of the track folder', () => {
+  test('removes everything except .mp3 and .wav', (done) => {
+    // seed the folder the way the pipeline leaves it: keepers plus debris
+    fs.writeFileSync(`${single.folderPath}/${single.name}.mp3`, 'mp3');
+    fs.writeFileSync(`${single.folderPath}/${single.name} cover3.png`, 'png');
+    fs.writeFileSync(`${single.folderPath}/${single.name}-chopped.m4v`, 'm4v');
+    fs.writeFileSync(`${single.folderPath}/fullscreen-blank.jpg`, 'jpg');
+
+    cleanUp(single, (err) => {
       try {
-        console.log('made it!');
+        expect(err).toBeNull();
+        const left = fs.readdirSync(single.folderPath).sort();
+        expect(left).toEqual([`${single.name}.mp3`, `${single.name}.wav`].sort());
         done();
       } catch (error) {
         done(error);
       }
-    }
-    cleanUp(single, callback);
+    });
   });
 });

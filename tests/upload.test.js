@@ -1,63 +1,61 @@
-const upload = require('../process/upload');
+const fs = require('fs');
 const sanitize = require('../process/sanitize');
-const testInfo = require('../settings/info');
+const upload = require('../process/upload');
+const { makeFixture } = require('./helpers/fixture');
 
-const event = { sender: { send: () => {} } };
-
+let fixture;
 let single;
 
 beforeEach(() => {
-  const { projects } = testInfo.files;
-  const beat = projects.pop();
-  single = { ...testInfo, ...beat, event };
-  single.mp4 = false;
-  single.cleanUp = false;
-  single.delete = false;
-  single.art = false;
-  single.delete = false;
-  single.mp3 = false;
-  single.zip = false;
-  single.upload = true;
-  single = sanitize(single);
+  fixture = makeFixture();
+  single = sanitize({ ...fixture.info, upload: true });
 });
 
-const skip = (info, cb) => {
-  cb();
-};
+afterEach(() => fixture.cleanup());
 
-jest.setTimeout.Timeout = 100000000;
-
-beforeEach(() => {
-  single = sanitize(testInfo());
-  bulk = sanitize(testInfo(true));
-});
-
-describe('Upload video to youtube', () => {
-  test('the data is processed', (done) => {
-    jest.setTimeout(10 ** 5);
-    function callback() {
+describe('write track info for upload', () => {
+  test('writes a trackinfo.csv with a header row and the track', (done) => {
+    upload(single, (err) => {
       try {
-        console.log('made it!');
-        done();
+        expect(err).toBeNull();
+        const csvPath = `${single.outputPath}/trackinfo.csv`;
+        // csv-write-stream finishes asynchronously through the file stream
+        setTimeout(() => {
+          try {
+            expect(fs.existsSync(csvPath)).toBe(true);
+            const csv = fs.readFileSync(csvPath, 'utf8');
+            expect(csv.split('\n')[0]).toBe('track,title,date,description,tags,privacyStatus');
+            expect(csv).toContain(single.name);
+            expect(csv).toContain('private');
+            done();
+          } catch (error) {
+            done(error);
+          }
+        }, 250);
       } catch (error) {
         done(error);
       }
-    }
-
-    skip(bulk, callback);
-    // upload(bulk, callback);
+    });
   });
-  test('the data is processed', (done) => {
-    jest.setTimeout(10 ** 5);
-    function callback() {
-      try {
-        console.log('made it!');
-        done();
-      } catch (error) {
-        done(error);
-      }
-    }
-    skip(single, callback);
-    // upload(single, callback);
+
+  test('appends without repeating the header on a second write', (done) => {
+    upload(single, () => {
+      setTimeout(() => {
+        upload(single, () => {
+          setTimeout(() => {
+            try {
+              const csv = fs.readFileSync(`${single.outputPath}/trackinfo.csv`, 'utf8');
+              const headerCount = csv
+                .split('\n')
+                .filter((line) => line.startsWith('track,title,date')).length;
+              expect(headerCount).toBe(1);
+              done();
+            } catch (error) {
+              done(error);
+            }
+          }, 250);
+        });
+      }, 250);
+    });
   });
 });
