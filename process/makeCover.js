@@ -2,7 +2,12 @@
 const gm = require('gm');
 const fs = require('fs');
 const path = require('path');
-const sizeOf = require('image-size');
+// image-size 2.x moved to a named export and no longer accepts a path --
+// the module object itself is not callable, and imageSize() takes a
+// Buffer. Verified: imageSize('path') throws "The \"list\" argument must
+// be an instance of SharedArrayBuffer, ArrayBuffer or ArrayBufferView",
+// while imageSize(fs.readFileSync(path)) returns {width, height, type}.
+const { imageSize } = require('image-size');
 
 const randomcolor = () => Math.floor(Math.random() * (10));
 const getRndInteger = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -275,7 +280,7 @@ const makeCover = (info, callback) => {
   const [red, green, blue] = [randomcolor(), randomcolor(), randomcolor()];
   const colorsnumber = getRndInteger(3, 20);
   const colorsArr = colors();
-  const dimensions = sizeOf(imagePath);
+  const dimensions = imageSize(fs.readFileSync(imagePath));
   composeThumbnail({
     folderPath, imagePath, measure, type, colorsnumber, red, green, blue, colorsArr,
   }, () => {
