@@ -28,17 +28,6 @@ function colors() {
   return [v1, v2][Date.now() % 2]();
 }
 
-function addLogoToImage({
-  logoPath, folderPath, name, outputPath,
-}, callback) {
-  return gm(`${folderPath}/${name} cropped.png`)
-    .composite(logoPath)
-    .write(`${outputPath}/${name}.png`, (err) => {
-      if (err) throw err;
-      callback(null);
-    });
-}
-
 function composeCoverArt({
   folderPath, imagePath, dimensions, colorsnumber, beatName, bpm,
   key, red, green, blue, outputPath, name, logoPath,
