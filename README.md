@@ -1,7 +1,7 @@
 # beatpack
 
 This app automates tedious tasks and solves the problem of the 'Type Beat' producer. Stem zipping, mp3 generation, cover art + logo overlaying, and splicing videos together with the track in the background. This app handles the rest so you can focus on the fun parts.
-Created using Electron, and React this desktop application works on any platform to enhance the workflow of sonic artists seeking to increase their production speed.
+Created using Electron, and React this desktop application enhances the workflow of sonic artists seeking to increase their production speed.
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@ brew install ffmpeg graphicsmagick lame
 
 ### 2. Environment
 - **Node.js**: v12.x is recommended, but v17+ works with the legacy OpenSSL provider flag (included in scripts).
-- **Architecture**: Supports Apple Silicon (M1/M2/M3) and Intel.
+- **Architecture**: macOS on Apple Silicon only — `process/ffmpeg.js`, `process/encode.js`, and `process/getSongDurationInSeconds.js` hardcode `/opt/homebrew/bin/...` paths for ffmpeg/ffprobe/lame, so Intel Mac, Windows, and Linux builds will not find those binaries.
 
 ## Installing
 

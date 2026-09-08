@@ -13,7 +13,7 @@ Beatpack is a desktop application designed to automate the post-production workf
 - **Functionality**: User interface for file selection (projects, images, videos), configuration of metadata (BPM, Key, Producer), and triggering the processing pipeline. Communicates with the main process via Electron IPC.
 
 ### 2. Main Process (Backend)
-- **Technology**: Electron (v9), Node.js.
+- **Technology**: Electron (v13), Node.js.
 - **Entry Point**: `main.js`.
 - **Functionality**: 
   - Manages application lifecycle and windows.
@@ -25,10 +25,10 @@ Beatpack is a desktop application designed to automate the post-production workf
 - **Orchestration**: `process/index.js` and `process/asyncMapMax.js`.
 - **Tasks**:
   - **Zipping**: `process/zipfolder.js` (using `archiver`).
-  - **Encoding**: `process/encode.js` (MP3 conversion using `node-lame` or `fluent-ffmpeg`).
+  - **Encoding**: `process/encode.js` (MP3 conversion by shelling out to a hardcoded `/opt/homebrew/bin/lame` via `child_process.execFile`, not the `node-lame`/`fluent-ffmpeg` packages).
   - **Cover Art**: `process/makeCover.js` (using `graphicsmagick`).
-  - **Video Generation**: `process/ffmpeg.js` (using `fluent-ffmpeg` to combine audio and image/video).
-  - **Uploading**: `process/upload.js` (YouTube upload via `googleapis` or `node-apiless-youtube-upload`).
+  - **Video Generation**: `process/ffmpeg.js` (shells out to a hardcoded `/opt/homebrew/bin/ffmpeg`/`ffprobe` via `child_process.execFile`, not `fluent-ffmpeg`, to combine audio and image/video).
+  - **Uploading**: `process/upload.js` (writes track metadata to `trackinfo.csv` via `csv-write-stream`; YouTube upload is not implemented).
   - **Cleanup**: `process/cleanUp.js` (removes temporary files).
 
 ### 4. Settings & Configuration
