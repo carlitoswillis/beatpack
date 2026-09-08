@@ -1,5 +1,21 @@
 ffmpeg notes
 
+SCRATCHPAD -- not executed by the app. Nothing in process/ requires this file.
+
+WARNING: `drawtext` is NOT AVAILABLE in the ffmpeg this project targets.
+The Homebrew 8.1.1 build is not compiled --enable-libfreetype:
+    ffmpeg -filters | awk '$2=="drawtext"'   ->   (no output)
+It appears below at the two `drawtext=fontfile=...` recipes and will fail
+immediately if lifted into process/. Text is already burned in upstream by
+GraphicsMagick (process/makeCover.js drawText), so there is no need for it.
+Every OTHER filter used below is present in this build and was verified:
+showwaves, showfreqs, showcqt, avectorscope, showspectrum, pad,
+colorchannelmixer, aformat, format, select/setpts, aselect/asetpts,
+scale, crop, overlay.
+
+Runnable, de-free-d versions of the audio-analysis recipes live in
+docs/ffmpeg-recipes.sh.
+
 ffmpeg -i "/Users/carlitoswillis/Downloads/test templates/testinglongername (prod. barlitxs) 123 bpm Cb Major/testinglongername (prod. barlitxs) 123 bpm Cb Major.mp3" -filter_complex "[0:a]showwaves=colors=red|white:s=128x86:mode=line" out.mp4 -y
 
 

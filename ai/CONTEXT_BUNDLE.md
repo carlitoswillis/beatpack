@@ -138,7 +138,7 @@ Located in `/ai`:
 ./tests/nmtest.js
 ./tests/mp4.test.js
 ./tests/upload.test.js
-./ffmpeg analyze audio.js
+./docs/ffmpeg-recipes.sh
 ./server
 ./server/index.js
 ./server/testing.js
@@ -211,7 +211,6 @@ Located in `/ai`:
 ./process/ffmpeg notes
 ./process/sanitizeImports.js
 ./process/getSongDurationInSeconds.js
-./process/showwaves.js
 ```
 
 ## 5. Recent Git Changes (Summary)

@@ -7,3 +7,5 @@ credentials.json
 tokens.json
 client_secret.json
 youtube-nodejs-quickstart.json
+errorlogs/*
+!errorlogs/.gitkeep
