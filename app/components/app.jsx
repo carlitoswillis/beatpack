@@ -9,10 +9,17 @@ import LCD from './lcd';
 const path = require('path');
 const fs = require('fs');
 const electron = require('electron');
-const { dialog } = require('electron').remote;
 
 const home = path.join('Applications', 'beatpack.app', 'Contents', 'Resources', 'app');
 const ipc = electron.ipcRenderer;
+const { webUtils } = electron;
+
+/* `dialog` is a main-process module; the remote module that used to expose it
+   to the renderer was removed in Electron 14. main.js answers over IPC. */
+const showOpenDialog = (options) => ipc.invoke('show-open-dialog', options);
+
+/* Electron 32 removed the nonstandard File.path property. */
+const pathForFile = (file) => webUtils.getPathForFile(file);
 
 const lcdAlignCenter = (text, size = 16) => {
   text = text.substr(0, size);
@@ -145,12 +152,12 @@ function App() {
   });
 
   const handleDrop = (e) => {
-    const filePaths = Array.from(e.dataTransfer.files).map((file) => file.path);
+    const filePaths = Array.from(e.dataTransfer.files).map((file) => pathForFile(file));
     ipc.send('process-file-selection', JSON.stringify({ id: 'projects', filePaths, producer: info.producer }));
   };
 
   const selectFiles = () => {
-    dialog.showOpenDialog({ properties: ['openFile', 'openDirectory', 'multiSelections'] })
+    showOpenDialog({ properties: ['openFile', 'openDirectory', 'multiSelections'] })
       .then((result) => result)
       .then((selection) => {
         if (!selection.canceled) {
@@ -280,11 +287,11 @@ function App() {
   };
 
   const handleImageDrop = (e) => {
-    const imagePaths = Array.from(e.dataTransfer.files).map((file) => file.path);
+    const imagePaths = Array.from(e.dataTransfer.files).map((file) => pathForFile(file));
     ipc.send('process-image-selection', JSON.stringify({ id: 'images', imagePaths }));
   };
   const handleImageSelect = (e) => {
-    dialog.showOpenDialog({ properties: ['openFile', 'openDirectory', 'multiSelections'] })
+    showOpenDialog({ properties: ['openFile', 'openDirectory', 'multiSelections'] })
       .then((result) => result)
       .then((selection) => {
         if (!selection.canceled) {
@@ -334,11 +341,11 @@ function App() {
   };
 
   const handleVidDrop = (e) => {
-    const videoPaths = Array.from(e.dataTransfer.files).map((file) => file.path);
+    const videoPaths = Array.from(e.dataTransfer.files).map((file) => pathForFile(file));
     ipc.send('process-video-selection', JSON.stringify({ id: 'videos', videoPaths }));
   };
   const handleVidSelect = (e) => {
-    dialog.showOpenDialog({ properties: ['openFile', 'openDirectory', 'multiSelections'] })
+    showOpenDialog({ properties: ['openFile', 'openDirectory', 'multiSelections'] })
       .then((result) => result)
       .then((selection) => {
         if (!selection.canceled) {

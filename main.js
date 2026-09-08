@@ -10,8 +10,17 @@ const taskHandler = require(path.resolve(__dirname, 'process'));
 const sanitize = require(path.resolve(__dirname, 'process', 'sanitize'));
 
 const ipc = electron.ipcMain;
-const { app, BrowserWindow } = electron;
+const { app, BrowserWindow, dialog } = electron;
 // require('electron-reload')(__dirname);
+
+/* The renderer used to reach dialog through the remote module, which Electron
+   removed. Native dialogs now live here and the renderer asks over IPC. */
+ipc.handle('show-open-dialog', (event, options) => {
+  const parent = BrowserWindow.fromWebContents(event.sender);
+  return parent
+    ? dialog.showOpenDialog(parent, options)
+    : dialog.showOpenDialog(options);
+});
 
 let mainWindow;
 
@@ -27,7 +36,6 @@ function createWindow() {
       nodeIntegration: true,
       contextIsolation: false,
       webviewTag: true,
-      enableRemoteModule: true,
     },
     // frame: false,
   });
