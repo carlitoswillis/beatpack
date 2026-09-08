@@ -1,0 +1,6 @@
+node_modules
+beatpack.js
+beatpack.js.LICENSE.txt
+public/
+release-builds/
+views/script.js

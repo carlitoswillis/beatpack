@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
+const { webUtils } = require('electron');
+
+/* Electron 32 removed the nonstandard File.path property. */
+const pathForFile = (file) => webUtils.getPathForFile(file);
+
 function DT() {
   const [selectedDate, setSelectedDate] = useState(null);
   const [shown, setShown] = useState(false);
@@ -49,8 +54,8 @@ const InputArea = ({ inputHandler }) => (
         onChange={(e) => inputHandler(e)}
         onDrop={(e) => {
           stop(e);
-          inputHandler(e, e.dataTransfer.files[0].path);
-          e.target.value = e.dataTransfer.files[0].path;
+          inputHandler(e, pathForFile(e.dataTransfer.files[0]));
+          e.target.value = pathForFile(e.dataTransfer.files[0]);
         }}
         onDragOver={stop}
         onDragEnter={stop}
@@ -64,8 +69,8 @@ const InputArea = ({ inputHandler }) => (
         onChange={(e) => inputHandler(e)}
         onDrop={(e) => {
           stop(e);
-          inputHandler(e, e.dataTransfer.files[0].path);
-          e.target.value = e.dataTransfer.files[0].path;
+          inputHandler(e, pathForFile(e.dataTransfer.files[0]));
+          e.target.value = pathForFile(e.dataTransfer.files[0]);
         }}
         onDragOver={stop}
         onDragEnter={stop}
@@ -79,8 +84,8 @@ const InputArea = ({ inputHandler }) => (
         onChange={(e) => inputHandler(e)}
         onDrop={(e) => {
           stop(e);
-          inputHandler(e, e.dataTransfer.files[0].path);
-          e.target.value = e.dataTransfer.files[0].path;
+          inputHandler(e, pathForFile(e.dataTransfer.files[0]));
+          e.target.value = pathForFile(e.dataTransfer.files[0]);
         }}
         onDragOver={stop}
         onDragEnter={stop}
