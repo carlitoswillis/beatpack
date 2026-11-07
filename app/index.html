@@ -206,6 +206,8 @@ function actionHtml(r) {
   if (r.state === "held") return `<div class="cap">unhold ${esc(r.slug)} to put it back</div>`;
   if (r.status === "loop" && !r.has_recording)
     out += `<div class="drop">Drop the screen recording here, or <label>choose a file<input type="file" accept=".mov,.mp4,.m4v,video/*" data-slug="${esc(r.slug)}"></label>. It is saved in the inbox as ${esc(r.slug)}.</div>`;
+  if (r.is_canvas && r.state !== "held")
+    out += `<div class="drop">Canvas clip. Drop the screen recording here, or <label>choose a file<input type="file" accept=".mov,.mp4,.m4v,video/*" data-slug="${esc(r.slug)}"></label>, then render again.</div>`;
   if (r.state === "queued" && r.caption) out += `<button class="btn link" data-copy="${esc(r.caption)}">Copy caption</button>`;
   return out;
 }
@@ -218,7 +220,8 @@ function rowHtml(r) {
     ${thumb}
     <div class="tb"><div class="t">${esc(r.title)}</div>
       <div class="l">${esc(r.bpm)} bpm</div>
-      ${r.key ? `<div class="l">${esc(r.key)}</div>` : `<div class="l dim">no key</div>`}</div>
+      ${r.key ? `<div class="l">${esc(r.key)}</div>` : `<div class="l dim">no key</div>`}
+      ${r.is_canvas ? `<div class="l dim">canvas (no recording)</div>` : ""}</div>
     <div class="track">${[0, 1, 2, 3].map(i => stationHtml(r, i)).join("")}
       ${r.state === "failed" && r.error ? `<div class="err">${esc(r.error)}</div>` : ""}
       ${r.state === "held" ? `<div class="why">on hold${r.hold_reason ? `: <span class="n">${esc(r.hold_reason)}</span>` : ""}</div>` : ""}</div>
@@ -240,7 +243,7 @@ function wire(row) {
   };
   const input = row.querySelector("input[type=file]");
   if (input) input.onchange = () => input.files[0] && upload(slug, input.files[0]);
-  if (!(r.status === "loop" && !r.has_recording)) return;
+  if (!((r.status === "loop" || r.is_canvas) && !r.has_recording)) return;
   row.ondragover = e => { e.preventDefault(); row.classList.add("drag"); };
   row.ondragleave = () => row.classList.remove("drag");
   row.ondrop = e => { e.preventDefault(); row.classList.remove("drag"); const f = e.dataTransfer.files[0]; if (f) upload(slug, f); };

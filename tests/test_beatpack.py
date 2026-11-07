@@ -115,7 +115,7 @@ class Captions(unittest.TestCase):
     def test_wraps(self):
         self.assertEqual(bp.caption_for(self.c, "1", "k", 2), bp.caption_for(self.c, "1", "k", 0))
         real = {**cfg(), "captions": str(Path(bp.__file__).parent / "captions.txt")}
-        self.assertEqual(bp.caption_for(real, "150", "a", 9), bp.caption_for(real, "150", "a", 0))
+        self.assertEqual(bp.caption_for(real, "150", "a", 7), bp.caption_for(real, "150", "a", 0))
 
     def test_hand_pick_lines_never_assigned(self):
         self.path.write_text("plain {bpm}\n? ctx {bpm}\ninvite {bpm}\n")
@@ -123,8 +123,8 @@ class Captions(unittest.TestCase):
         self.assertEqual(got, ["plain 9", "invite 9", "plain 9", "invite 9"])
         self.assertEqual(bp.hand_captions(self.c), ["ctx {bpm}"])
         real = {**cfg(), "captions": str(Path(bp.__file__).parent / "captions.txt")}
-        self.assertEqual(len(bp.load_captions(real)), 9)
-        self.assertEqual(len(bp.hand_captions(real)), 5)
+        self.assertEqual(len(bp.load_captions(real)), 7)
+        self.assertEqual(len(bp.hand_captions(real)), 7)
 
     def test_missing_file_falls_back(self):
         c = {**cfg(), "captions": str(Path(self.tmp.name) / "nope.txt")}
@@ -180,6 +180,49 @@ class Filtergraph(unittest.TestCase):
         self.assertIn("linear=true", f)
         self.assertIsNone(bp.loudnorm_filter(-14, {**m, "input_i": "-inf"}))
         self.assertIsNone(bp.loudnorm_filter(-14, None))
+
+
+class CanvasMode(unittest.TestCase):
+    def test_graph_has_no_footage_stage(self):
+        c = cfg()
+        pal = c["palette"][0]
+        box = bp.scope_box(c, pal["line"])
+        g = bp.clip_filtergraph(src_w=None, src_h=None, audio="1:a", loudnorm=None, palette=pal,
+                                box=box, bound=21.3)
+        self.assertIn("color=c=", g)
+        self.assertNotIn("scale=1080", g)
+        self.assertNotIn("crop=", g)
+        self.assertNotIn("[fg]", g)
+        self.assertNotIn("[0:v]fps", g)
+        self.assertIn("[0:v]format=rgba[tx]", g)         # the title PNG is the only video input
+        self.assertIn("[1:a]asplit=2", g)
+        self.assertIn(f"overlay={box[0]}:{box[1]}", g)
+
+    def test_repeats_reach_fifteen_seconds(self):
+        self.assertEqual(bp.canvas_repeats(10.667), 2)
+        self.assertEqual(bp.canvas_repeats(15.238), 1)
+        self.assertEqual(bp.canvas_repeats(15.0), 1)
+        self.assertEqual(bp.canvas_repeats(3.0), 5)
+        with self.assertRaises(ValueError):
+            bp.canvas_repeats(0)
+
+    def test_template_drops_footage_rows(self):
+        c = cfg()
+        job = bp.ClipJob("regal", None, False, Path("/w/regal-canvas.wav"), 21.3,
+                         Path("/w/t.png"), Path("/o/regal.mp4"), "180", "A minor", "REGAL",
+                         c["palette"][0], canvas=True)
+        vals = bp.effectcraft_values(c, job, 1, 1, 21.3)
+        self.assertEqual(vals["IMPORTS"], ["/w/regal-canvas.wav"])
+        tpl = (bp.REPO / "templates" / "osc-9x16.jsonl").read_text().splitlines()
+        canvas = bp.fill_template(tpl, vals, {"has_key"})
+        full = bp.fill_template(tpl, vals, {"has_key", "footage", "audio_is_footage"})
+        dump = json.dumps(canvas)
+        self.assertNotIn("transform/scale", dump)
+        self.assertNotIn("layer.addMask", dump)
+        self.assertNotIn("transform/position", dump)
+        self.assertNotIn('"switch"', dump)
+        self.assertEqual(len(full) - len(canvas), 6)     # footage layer, scale, mask, position, two switches
+        self.assertEqual(bp.capture_index(canvas, "audio"), 2)  # comp, import, then the audio layer
 
 
 class EffectCraftTemplate(unittest.TestCase):

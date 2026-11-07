@@ -1,10 +1,10 @@
 {"note": "flat canvas from the palette; no blur, no darkened copy", "command": "comp.new", "params": {"name": "Main", "width": 1080, "height": 1920, "frameRate": 30, "duration": "{{DURATION}}", "background": "{{CANVAS}}"}}
 {"command": "file.import", "params": {"paths": "{{IMPORTS}}"}}
-{"note": "footage panel: full width, middle band y 900-1440", "command": "layer.addItem", "params": {"item": "{{FOOTAGE_ITEM}}"}}
-{"command": "prop.set", "params": {"layer": "#1", "path": "transform/scale", "value": ["{{FG_SCALE}}", "{{FG_SCALE}}", 100]}}
-{"command": "layer.addMask", "params": {"layer": "#1", "shape": "rect", "rect": "{{FG_MASK}}"}}
-{"command": "prop.set", "params": {"layer": "#1", "path": "transform/position", "value": "{{FG_POS}}"}}
-{"note": "the picture layer never plays; the audio layer below does", "command": "layer.setSwitch", "params": {"layers": ["#1"], "switch": "audio", "value": false}}
+{"when": "footage", "note": "footage panel: full width, middle band y 900-1440", "command": "layer.addItem", "params": {"item": "{{FOOTAGE_ITEM}}"}}
+{"when": "footage", "command": "prop.set", "params": {"layer": "#1", "path": "transform/scale", "value": ["{{FG_SCALE}}", "{{FG_SCALE}}", 100]}}
+{"when": "footage", "command": "layer.addMask", "params": {"layer": "#1", "shape": "rect", "rect": "{{FG_MASK}}"}}
+{"when": "footage", "command": "prop.set", "params": {"layer": "#1", "path": "transform/position", "value": "{{FG_POS}}"}}
+{"when": "footage", "note": "the picture layer never plays; the audio layer below does", "command": "layer.setSwitch", "params": {"layers": ["#1"], "switch": "audio", "value": false}}
 {"capture": "audio", "note": "the recording itself when it carries audio, else the loop wav", "command": "layer.addItem", "params": {"item": "{{AUDIO_ITEM}}"}}
 {"when": "audio_is_footage", "command": "layer.setSwitch", "params": {"layers": ["#1"], "switch": "video", "value": false}}
 {"command": "layer.newSolid", "params": {"name": "Scope", "color": "#000000"}}

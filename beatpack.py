@@ -430,25 +430,32 @@ def viz_chain(viz: str, src: str, out: str, *, box: tuple, ink: str, bound: floa
             f"[{out}c][{out}m]alphamerge[{out}]")
 
 
-def clip_filtergraph(*, src_w: int, src_h: int, audio: str, loudnorm: str | None,
+def clip_filtergraph(*, src_w: int | None, src_h: int | None, audio: str, loudnorm: str | None,
                      palette: dict, box: tuple, bound: float, viz: str = "osc",
-                     strip_input: int | None = None) -> str:
+                     strip_input: int | None = None, text_input: int | None = None) -> str:
     """Filtergraph for the 9:16 clip (2021 look).
 
     Inputs: [0:v] footage (screen recording or still), [1:v] title-block PNG,
     `audio` = the audio input label ('0:a' for a recording, never re-cut).
+    Canvas mode (src_w is None): no footage input at all, so the scale/overlay stage is
+    skipped and the title PNG is input `text_input` (default 0).
     """
-    h, crop_h, fy = footage_geometry(src_w, src_h)
     x, y = box[0], box[1]
-    parts = [
-        f"color=c={ff_color(palette['bg'])}:s={FRAME_W}x{FRAME_H}:r=30:d={bound:.3f}[cv]",
-        f"[0:v]fps=30,scale={FRAME_W}:{h},crop={FRAME_W}:{crop_h},setsar=1[fg]",
-        f"[cv][fg]overlay=0:{fy}:shortest=1[base]",
+    canvas = src_w is None
+    tx = 0 if (canvas and text_input is None) else (text_input if text_input is not None else 1)
+    parts = [f"color=c={ff_color(palette['bg'])}:s={FRAME_W}x{FRAME_H}:r=30:d={bound:.3f}[cv]"]
+    if canvas:
+        parts.append("[cv]null[base]")
+    else:
+        h, crop_h, fy = footage_geometry(src_w, src_h)
+        parts += [f"[0:v]fps=30,scale={FRAME_W}:{h},crop={FRAME_W}:{crop_h},setsar=1[fg]",
+                  f"[cv][fg]overlay=0:{fy}:shortest=1[base]"]
+    parts += [
         f"[{audio}]asplit=2[aw][an]",
         viz_chain(viz, "aw", "wv", box=box, ink=palette["ink"], bound=bound,
                   strip_input=strip_input),
         f"[base][wv]overlay={x}:{y}:shortest=1[v1]",
-        "[1:v]format=rgba[tx]",
+        f"[{tx}:v]format=rgba[tx]",
         "[v1][tx]overlay=0:0:shortest=1,format=yuv420p[v]",
         f"[an]{loudnorm + ',' if loudnorm else ''}aresample=48000[aud]",
     ]
@@ -813,7 +820,7 @@ def cut_loop(cfg: dict, P: dict, cs: CatalogSet, slug: str, src: Path, bars: int
 @dataclass
 class ClipJob:
     slug: str
-    footage: Path            # screen recording, or still image in fallback mode
+    footage: Path | None     # screen recording, or still image in fallback mode (None: canvas)
     is_still: bool
     audio: Path | None       # None: use the recording's own audio
     duration: float | None   # only bounds still/looped inputs; recordings are never cut
@@ -824,6 +831,7 @@ class ClipJob:
     title: str = ""
     palette: dict = field(default_factory=dict)
     viz: str = "osc"
+    canvas: bool = False     # no footage at all: the clip is the title block and the scope
 
 
 def title_draws(cfg: dict, lines: list, ink: str, scale: float = 1.0) -> list[str]:
@@ -857,7 +865,11 @@ def render_ffmpeg(cfg: dict, job: ClipJob) -> None:
     # Every looped image input gets an input-side -t. Without it a `-loop 1` still keeps
     # producing frames after the audio (and the visualizer) end, and the graph never
     # finishes (measured: stalls at 14.6 s of a 15.2 s loop with the osc visualizer).
-    if job.is_still:
+    if job.canvas:
+        src_w = src_h = None
+        bound = job.duration
+        inputs = []
+    elif job.is_still:
         src_w, src_h = (1920, 1080) if DRY_RUN else image_size(cfg, job.footage)
         bound = job.duration
         inputs = ["-loop", "1", "-framerate", "30", "-t", f"{bound:.3f}", "-i", str(job.footage)]
@@ -867,11 +879,13 @@ def render_ffmpeg(cfg: dict, job: ClipJob) -> None:
         bound = job.duration or info["duration"] or 600.0
         inputs = ["-i", str(job.footage)]
     loop_img = ["-loop", "1", "-framerate", "30", "-t", f"{bound:.3f}", "-i"]
+    text_idx = 0 if job.canvas else 1
     inputs += [*loop_img, str(job.text_png)]
     if job.audio:
         # `-stream_loop` is not used: a still loops via -loop 1, and a recording is never cut.
+        # (Canvas audio is already repeated into one WAV by canvas_audio().)
         inputs += ["-i", str(job.audio)]
-        audio_label, audio_in = "2:a", ["-i", str(job.audio)]
+        audio_label, audio_in = f"{text_idx + 1}:a", ["-i", str(job.audio)]
     else:
         audio_label, audio_in = "0:a", ["-i", str(job.footage)]
     box = scope_box(cfg, job.palette["line"])
@@ -885,13 +899,13 @@ def render_ffmpeg(cfg: dict, job: ClipJob) -> None:
         length, amp = (bh, bw) if vert else (bw, bh)
         run(cmd + ["-filter_complex", f"[0:a]showwavespic=s={length}x{amp}:colors=white:"
                    "split_channels=0", "-frames:v", "1", str(strip_png)])
-        strip_input = 3 if job.audio else 2
+        strip_input = text_idx + (2 if job.audio else 1)
         inputs += [*loop_img, str(strip_png)]
     measured = measure_loudness(cfg, audio_in, job.duration)
     graph = clip_filtergraph(src_w=src_w, src_h=src_h, audio=audio_label,
                              loudnorm=loudnorm_filter(cfg["loudness_lufs"], measured),
                              palette=job.palette, box=box, bound=bound, viz=job.viz,
-                             strip_input=strip_input)
+                             strip_input=strip_input, text_input=text_idx)
     cmd = [cfg["ffmpeg"], "-v", "error", "-y", *inputs, "-filter_complex", graph,
            "-map", "[v]", "-map", "[aud]"]
     if job.duration:
@@ -959,6 +973,8 @@ def effectcraft_values(cfg: dict, job: ClipJob, src_w: int, src_h: int, duration
     side = pal["line"] if pal["line"] in ("left", "right", "bottom") else "bottom"
     edge = "bottom" if side == "bottom" else "left"      # viz settings are per orientation
     v = cfg["viz_effectcraft"][edge]
+    if job.canvas:
+        src_w = src_h = 1                      # no footage: the footage rows are skipped
     fg_scale = FRAME_W / src_w * 100.0
     vis_h = min(src_h, FOOT_BAND_H / (fg_scale / 100.0))      # source px kept by the mask
     mask = [0, round((src_h - vis_h) / 2.0, 2), src_w, round(vis_h, 2)]
@@ -968,12 +984,13 @@ def effectcraft_values(cfg: dict, job: ClipJob, src_w: int, src_h: int, duration
     else:
         start, end = [sc["bottom_x"][0], sc["bottom_y"]], [sc["bottom_x"][1], sc["bottom_y"]]
     audio = job.audio or job.footage
+    footage_item = job.footage.name if job.footage else ""
     vals = {
         "DURATION": round(duration, 3), "CANVAS": pal["bg"], "INK": pal["ink"],
         "INK2": t["double_color"] or pal["ink"], "INK_RGBA": hex_rgba(pal["ink"]),
         "FONT": cfg["font_family"],
-        "IMPORTS": sorted({str(job.footage), str(audio)}),
-        "FOOTAGE_ITEM": job.footage.name, "AUDIO_ITEM": audio.name,
+        "IMPORTS": sorted({str(p) for p in (job.footage, audio) if p}),
+        "FOOTAGE_ITEM": footage_item, "AUDIO_ITEM": audio.name,
         "FG_SCALE": round(fg_scale, 3), "FG_MASK": mask,
         "FG_POS": [FRAME_W / 2, FOOT_BAND_Y + FOOT_BAND_H / 2, 0],
         "SCOPE_START": start, "SCOPE_END": end,
@@ -1002,7 +1019,10 @@ def render_effectcraft(cfg: dict, job: ClipJob) -> None:
     if job.viz != "osc":
         raise RuntimeError("the effectcraft template only has the osc visualizer; "
                            "use --renderer ffmpeg for bars or strip")
-    if job.is_still:
+    if job.canvas:
+        src_w = src_h = 1
+        duration = job.duration
+    elif job.is_still:
         src_w, src_h = (1920, 1080) if DRY_RUN else image_size(cfg, job.footage)
         duration = job.duration
     else:
@@ -1011,6 +1031,8 @@ def render_effectcraft(cfg: dict, job: ClipJob) -> None:
         # A recording is never cut: the comp is as long as the recording.
         duration = min(job.duration, info["duration"]) if job.duration else info["duration"]
     flags = {"audio_is_footage"} if job.audio is None else set()
+    if not job.canvas:
+        flags.add("footage")
     if job.key:
         flags.add("has_key")
     if cfg["title"].get("double_offset"):
@@ -1094,6 +1116,28 @@ def find_recording(inbox: Path, slug: str) -> Path | None:
     return None
 
 
+CANVAS_MIN_S = 15.0
+
+
+def canvas_repeats(loop_s: float, minimum: float = CANVAS_MIN_S) -> int:
+    """How many times the loop plays so the canvas clip reaches at least `minimum` seconds."""
+    if loop_s <= 0:
+        raise ValueError("loop has no length")
+    return max(1, math.ceil(minimum / loop_s - 1e-9))
+
+
+def canvas_audio(cfg: dict, wav: Path, loop_s: float, out: Path) -> tuple[Path, float]:
+    """The loop WAV repeated end to end (the loops carry 5 ms fades, so the seams are clean)
+    until it reaches CANVAS_MIN_S. Returns (path, duration)."""
+    n = canvas_repeats(loop_s)
+    if DRY_RUN:
+        return out, loop_s * n
+    out.parent.mkdir(parents=True, exist_ok=True)
+    run([cfg["ffmpeg"], "-v", "error", "-y", "-stream_loop", str(n - 1), "-i", str(wav),
+         "-c", "copy", str(out)])
+    return out, probe(cfg, out)["duration"] or loop_s * n
+
+
 def cmd_clips(cfg: dict, args) -> int:
     P = paths(cfg)
     belt = read_csv(P["belt"], BELT_COLUMNS)
@@ -1142,9 +1186,19 @@ def cmd_clips(cfg: dict, args) -> int:
             kind = "still-fallback"
             print(f"FALLBACK {slug}: no recording in inbox, using still {args.still}")
         else:
-            print(f"wait {slug}: no recording at {P['inbox'] / (slug + '.mov')} "
-                  "(or pass --still image.png)")
-            continue
+            # No recording and no --still: the clip is just the canvas (title block + scope).
+            try:
+                wav, dur = canvas_audio(cfg, Path(r["wav"]), float(r["duration_s"] or 0),
+                                        P["work"] / f"{slug}-canvas.wav")
+            except (RuntimeError, OSError, ValueError) as e:
+                print(f"fail {slug}: cannot prepare canvas audio: {e}", file=sys.stderr)
+                failures += 1
+                continue
+            job = ClipJob(slug, None, False, wav, dur, text_png, out, r["bpm"], r["key"],
+                          canvas=True)
+            kind = "canvas"
+            print(f"CANVAS {slug}: no recording in inbox, rendering title + scope only "
+                  f"({dur:.1f} s)")
         pal = pick_palette(cfg, belt, r, args.palette)
         job.title = r.get("title") or clean_title(r["name"], r["bpm"])
         job.palette, job.viz = pal, args.viz
@@ -1452,6 +1506,9 @@ def build_state(cfg: dict, job: dict | None = None, failures: dict | None = None
         src = job if slug in busy else fail
         target = CMD_STATION.get(src["cmd"], station) if src else min(station + 1, 3)
         action = next_action(r, bool(rec), bool(q))
+        if rec and r["clip_kind"].startswith("canvas") and r["status"] in ("clip", "packed"):
+            # A recording arrived after the canvas clip: offer the re-render first.
+            action = {"label": "Render", "cmd": "clips", "args": [slug, "--force"]}
         if fail:
             action = {"label": "Retry", "cmd": fail["cmd"], "args": fail["args"]}
         pal = pick_palette(cfg, belt, r)
@@ -1465,6 +1522,8 @@ def build_state(cfg: dict, job: dict | None = None, failures: dict | None = None
             "posted_at": q["posted_at"] if q else "", "action": action,
             "error": fail["line"] if fail else "",
             "hold_reason": r["hold_reason"] if r["status"] == HOLD else "",
+            "clip_kind": r["clip_kind"],
+            "is_canvas": has_clip and r["clip_kind"].startswith("canvas") and not rec,
         })
     # Held rows sink below the active ones, posted rows below those; the rest keep belt order.
     rows.sort(key=lambda x: {"held": 1, "posted": 2}.get(x["state"], 0))
@@ -1796,7 +1855,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("clips", help="render 1080x1920 clips from inbox recordings")
     s.add_argument("slugs", nargs="*", help="only these slugs (default: every loop without a clip)")
-    s.add_argument("--still", help="fallback image for loops with no recording")
+    s.add_argument("--still", help="explicit fallback image for loops with no recording (default: render the canvas, no footage)")
     s.add_argument("--audio-from-loop", action="store_true",
                    help="if a recording has no audio track, use the loop WAV under it")
     s.add_argument("--renderer", choices=sorted(RENDERERS),
