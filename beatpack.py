@@ -1,0 +1,1037 @@
+#!/usr/bin/env python3
+"""beatpack: Ableton catalog -> loops, 9:16 loop clips, free loop packs, covers.
+
+Stdlib only. Safe to run as `python3 -I beatpack.py ...`.
+Renderer is ffmpeg (and GraphicsMagick for text); see README.md.
+"""
+from __future__ import annotations
+
+import argparse
+import array
+import csv
+import datetime as dt
+import json
+import math
+import os
+import re
+import shutil
+import sqlite3
+import subprocess
+import sys
+import zipfile
+from dataclasses import dataclass, field
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent
+
+DEFAULTS = {
+    "producer": "barlitxs",
+    "root": "~/Music/loopbelt",
+    "db": "~/Library/Application Support/ableton-library/library.db",
+    "font": "assets/fonts/BebasNeue-Regular.ttf",
+    "small_font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "ffmpeg": "ffmpeg",
+    "ffprobe": "ffprobe",
+    "gm": "gm",
+    "bars": 8,
+    "loudness_lufs": -14,
+    "audio_codec": "aac_at",
+    "audio_bitrate": "256k",
+    "renderer": "effectcraft",
+    "effectcraft": "~/workspace/effectcraft/repo/target/release/effectcraft-cli",
+    "effectcraft_commit": "bb2d2005cee68458a10ae2cc32d609d070b21744",
+    "effectcraft_template": "templates/osc-9x16.jsonl",
+    "effectcraft_bitrate_kbps": 10000,
+    "effectcraft_name_font": "Arial",
+    "viz_effectcraft": {"scope_y": 1425, "maximum_height": 150, "darken_opacity": 86, "audio_duration_ms": 120,
+                        "displayed_samples": 400, "thickness": 1.75, "softness": 2,
+                        "display_options": 1},
+    "caption": "{bpm} BPM{key_part}. Free loop in bio.",
+    "pack_readme": (
+        "Free loops by {producer}.\n\n"
+        "Use them in anything you make, paid or free. Credit \"prod. {producer}\" "
+        "if you use one.\nDo not resell the loops on their own.\n\n"
+        "Each folder has a WAV and a 320k MP3. BPM and key are in the file names.\n"
+    ),
+}
+
+BELT_COLUMNS = ["slug", "set_id", "name", "bpm", "key", "bars", "start_s",
+                "duration_s", "source", "wav", "mp3", "clip", "clip_kind",
+                "status", "updated"]
+QUEUE_COLUMNS = ["date", "slug", "clip", "caption", "status", "posted_at"]
+STATUS_ORDER = ["loop", "clip", "packed", "posted"]
+
+# Frame grid for the 1080x1920 clip (template C "mono", see README / research 13).
+FRAME_W, FRAME_H = 1080, 1920
+MARGIN_X = 60
+HERO_BASELINE = 660        # BPM number, Bebas 560 pt
+KEY_BASELINE = 745         # "BPM  F MINOR", Bebas 72 pt
+FOOT_CENTER_Y = 1090       # footage band ~820..1360, centered here
+FOOT_MAX_H = 608           # ffmpeg: 16:9 at 1080 wide; taller footage is center-cropped
+FOOT_BAND_H = 540          # effectcraft template: visible footage band (y 820-1360)
+WAVE_Y, WAVE_W, WAVE_H = 1400, FRAME_W - 2 * MARGIN_X, 110
+NAME_BASELINE = 1545       # producer name, 34 pt, muted
+MUTED = "#A8A8AD"
+BG_GAIN = 0.14          # background brightness multiplier (near-black)
+
+DRY_RUN = False
+
+
+# ---------------------------------------------------------------- config
+
+def load_config(path: str | None) -> dict:
+    cfg = dict(DEFAULTS)
+    p = Path(path) if path else REPO / "config.json"
+    if p.exists():
+        cfg.update(json.loads(p.read_text()))
+    elif path:
+        sys.exit(f"config not found: {path}")
+    cfg["root"] = Path(os.path.expanduser(cfg["root"]))
+    cfg["db"] = Path(os.path.expanduser(cfg["db"]))
+    for tool in ("ffmpeg", "ffprobe", "gm"):
+        cfg[tool] = resolve_tool(cfg[tool])
+    cfg["font"] = resolve_font(cfg["font"])
+    cfg["effectcraft"] = os.path.expanduser(cfg["effectcraft"])
+    cfg["viz_effectcraft"] = {**DEFAULTS["viz_effectcraft"], **cfg.get("viz_effectcraft", {})}
+    sf = Path(os.path.expanduser(cfg["small_font"]))
+    cfg["small_font"] = str(sf) if sf.exists() else cfg["font"]
+    return cfg
+
+
+def resolve_tool(name: str) -> str:
+    if os.path.isabs(name) and os.access(name, os.X_OK):
+        return name
+    found = shutil.which(name)
+    if found:
+        return found
+    brew = f"/opt/homebrew/bin/{Path(name).name}"
+    return brew if os.access(brew, os.X_OK) else name
+
+
+def resolve_font(font: str) -> str:
+    candidates = [Path(os.path.expanduser(font))]
+    if not candidates[0].is_absolute():
+        candidates = [REPO / font]
+    candidates += sorted((REPO / "assets").glob("**/*.ttf"))
+    candidates.append(Path("/System/Library/Fonts/Supplemental/Arial.ttf"))
+    for c in candidates:
+        if c.exists():
+            return str(c)
+    sys.exit("no .ttf font found; set \"font\" in config.json")
+
+
+def paths(cfg: dict) -> dict:
+    root = cfg["root"]
+    return {
+        "root": root, "loops": root / "loops", "inbox": root / "inbox",
+        "clips": root / "clips", "packs": root / "packs", "work": root / ".work",
+        "belt": root / "belt.csv", "queue": root / "queue.csv",
+    }
+
+
+# ---------------------------------------------------------------- pure helpers
+
+def bar_seconds(bpm: float, beats_per_bar: int = 4) -> float:
+    """Length of one bar in seconds (port of getLengthOfABar)."""
+    if bpm <= 0:
+        raise ValueError("bpm must be positive")
+    return beats_per_bar * 60.0 / bpm
+
+
+def bars_to_seconds(bpm: float, bars: int, beats_per_bar: int = 4) -> float:
+    """Port of getLengthOfBars from process/getSongDurationInSeconds.js."""
+    return bars * bar_seconds(bpm, beats_per_bar)
+
+
+def loudest_start_bar(bar_energy: list[float], bars: int, step: int = 4) -> int:
+    """Start bar (0-based, on a `step`-bar phrase grid) of the loudest `bars` window."""
+    n = len(bar_energy)
+    if n <= bars:
+        return 0
+    best, best_i = -1.0, 0
+    for i in range(0, n - bars + 1, max(1, step)):
+        e = sum(bar_energy[i:i + bars])
+        if e > best:
+            best, best_i = e, i
+    return best_i
+
+
+KEY_RE = re.compile(
+    r"(?<![a-z0-9])([a-g])\s?(#|b|sharp|flat)?\s?(major|minor|maj|min|m)(?![a-z])")
+
+
+def parse_key(text: str) -> str:
+    """'ssg 126 Db major' -> 'Db major'; 'regal 180 bpm a minor' -> 'A minor'; else ''."""
+    m = KEY_RE.search(text.lower())
+    if not m:
+        return ""
+    note, acc, mode = m.groups()
+    acc = {"sharp": "#", "flat": "b", None: ""}.get(acc, acc)
+    mode = "major" if mode in ("major", "maj") else "minor"
+    return f"{note.upper()}{acc} {mode}"
+
+
+def key_for_title(key: str) -> str:
+    """Bebas Neue is caps-only and has no flat glyph: 'Db major' would read 'DB MAJOR'."""
+    if not key:
+        return ""
+    note, mode = key.split(" ", 1)
+    if len(note) == 2 and note[1] == "b":
+        note = f"{note[0]} FLAT"
+    return f"{note} {mode}".upper()
+
+
+def key_short(key: str) -> str:
+    """'A minor' -> 'Amin' (for file names)."""
+    if not key:
+        return ""
+    note, mode = key.split(" ", 1)
+    return note + ("maj" if mode == "major" else "min")
+
+
+def fmt_bpm(bpm: float) -> str:
+    return str(int(round(bpm))) if abs(bpm - round(bpm)) < 0.01 else f"{bpm:.1f}"
+
+
+def slugify(name: str) -> str:
+    s = name.lower()
+    s = re.sub(r"\s+project$", "", s)
+    s = re.sub(r"\(prod\.[^)]*\)", " ", s)
+    s = re.sub(r"\d+(\.\d+)?\s?bpm", " ", s)
+    s = KEY_RE.sub(" ", s)
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+    return s[:48].strip("-")
+
+
+def caption_for(cfg: dict, bpm: str, key: str) -> str:
+    return cfg["caption"].format(bpm=bpm, key=key, key_part=f", {key}" if key else "",
+                                 producer=cfg["producer"])
+
+
+def next_dates(existing: list[str], count: int, today: dt.date) -> list[str]:
+    """One date per day, starting the day after max(today, last queued date)."""
+    last = today
+    for d in existing:
+        try:
+            last = max(last, dt.date.fromisoformat(d))
+        except ValueError:
+            pass
+    return [(last + dt.timedelta(days=i + 1)).isoformat() for i in range(count)]
+
+
+def status_at_least(status: str, floor: str) -> bool:
+    if status not in STATUS_ORDER:
+        return False
+    return STATUS_ORDER.index(status) >= STATUS_ORDER.index(floor)
+
+
+def gm_text(s: str) -> str:
+    """Make a string safe inside gm -draw "text x,y '...'"."""
+    return s.replace("\\", "").replace("'", "").replace('"', "")
+
+
+def footage_geometry(src_w: int, src_h: int) -> tuple[int, int, int]:
+    """Scaled footage height (even), crop height, and overlay y for the frame grid."""
+    h = int(round(src_h * FRAME_W / src_w / 2.0)) * 2
+    crop_h = min(h, FOOT_MAX_H)
+    y = FOOT_CENTER_Y - crop_h // 2
+    return h, crop_h, y
+
+
+VIZ_KINDS = ("osc", "bars", "strip")
+
+
+def viz_chain(viz: str, src: str, out: str, strip_input: int | None = None) -> str:
+    """Visualizer box (WAVE_W x WAVE_H, white, transparent ground) from audio label `src`.
+
+    osc:   oscilloscope, showwaves over a ~40 ms window (n=2 samples per column at 48 kHz),
+           so it moves with what is playing right now.
+    bars:  showfreqs spectrum, log/log, thresholded and cut into 60 bars.
+    strip: static whole-loop showwavespic PNG (input `strip_input`), the fallback.
+    """
+    key = "format=rgba,colorkey=black:0.1:0.1"
+    if viz == "osc":
+        return (f"[{src}]aresample=48000,aformat=channel_layouts=mono,"
+                f"showwaves=s={WAVE_W}x{WAVE_H}:mode=p2p:draw=full:n=2:scale=sqrt:colors=white,"
+                f"fps=30,format=gray,dilation,dilation,{key}[{out}]")
+    if viz == "bars":
+        bars = 60
+        return (f"[{src}]aformat=channel_layouts=mono,"
+                f"showfreqs=s={WAVE_W}x{WAVE_H}:mode=bar:ascale=log:fscale=log:"
+                f"win_size=2048:overlap=0.5:averaging=2:colors=white:rate=30,"
+                f"format=gray,scale={bars}:{WAVE_H}:flags=area,"
+                f"lut=y='if(gt(val,96),255,0)',scale={WAVE_W}:{WAVE_H}:flags=neighbor,"
+                f"drawgrid=w={WAVE_W // bars}:h=ih+1:t=4:c=black,{key}[{out}]")
+    if viz == "strip":
+        if strip_input is None:
+            raise ValueError("strip needs a waveform PNG input")
+        return f"[{src}]anullsink;[{strip_input}:v]{key}[{out}]"
+    raise ValueError(f"unknown viz {viz!r}; choose from {', '.join(VIZ_KINDS)}")
+
+
+def clip_filtergraph(*, src_w: int, src_h: int, audio: str, loudnorm: str | None,
+                     viz: str = "osc", strip_input: int | None = None) -> str:
+    """Filtergraph for the 9:16 clip.
+
+    Inputs: [0:v] footage (screen recording or looped still), [1:v] text PNG
+    (looped), `audio` = the audio input label ('0:a' for a recording).
+    Footage: full width, centered in the band, over a blurred near-black copy.
+    Visualizer: `viz_chain` from the same audio, colorkeyed to transparent.
+    """
+    h, crop_h, fy = footage_geometry(src_w, src_h)
+    parts = [
+        "[0:v]fps=30,split=2[fa][fb]",
+        # Blur at quarter size, then scale up: same look, far faster than gblur at full size.
+        f"[fa]scale={FRAME_W // 4}:{FRAME_H // 4}:force_original_aspect_ratio=increase,"
+        f"crop={FRAME_W // 4}:{FRAME_H // 4},gblur=sigma=12,"
+        # Multiply, not subtract: the brief's gm `-modulate 12` is ~12-15% of the original.
+        f"eq=saturation=0.4,colorchannelmixer=rr={BG_GAIN}:gg={BG_GAIN}:bb={BG_GAIN},"
+        f"scale={FRAME_W}:{FRAME_H},setsar=1[bg]",
+        f"[fb]scale={FRAME_W}:{h},crop={FRAME_W}:{crop_h},setsar=1[fg]",
+        f"[bg][fg]overlay=0:{fy}[base]",
+        f"[{audio}]asplit=2[aw][an]",
+        viz_chain(viz, "aw", "wv", strip_input),
+        f"[base][wv]overlay={MARGIN_X}:{WAVE_Y}:shortest=1[v1]",
+        "[1:v]format=rgba[tx]",
+        "[v1][tx]overlay=0:0:shortest=1,format=yuv420p[v]",
+        f"[an]{loudnorm + ',' if loudnorm else ''}aresample=48000[aud]",
+    ]
+    return ";\n".join(parts)
+
+
+def loudnorm_filter(target: float, measured: dict | None) -> str | None:
+    """Second-pass loudnorm string from first-pass JSON; None if unmeasurable (silence)."""
+    if not measured:
+        return None
+    try:
+        mi = float(measured["input_i"])
+    except (KeyError, ValueError):
+        return None
+    if math.isinf(mi) or mi < -70:
+        return None
+    return (f"loudnorm=I={target}:TP=-1:LRA=11:measured_I={measured['input_i']}:"
+            f"measured_TP={measured['input_tp']}:measured_LRA={measured['input_lra']}:"
+            f"measured_thresh={measured['input_thresh']}:offset={measured['target_offset']}:"
+            "linear=true")
+
+
+# ---------------------------------------------------------------- csv
+
+def read_csv(path: Path, columns: list[str]) -> list[dict]:
+    if not path.exists():
+        return []
+    with path.open(newline="") as f:
+        return [{c: row.get(c, "") or "" for c in columns} for row in csv.DictReader(f)]
+
+
+def write_csv(path: Path, columns: list[str], rows: list[dict]) -> None:
+    if DRY_RUN:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
+        w.writeheader()
+        for r in rows:
+            w.writerow({c: r.get(c, "") for c in columns})
+    os.replace(tmp, path)
+
+
+def upsert(rows: list[dict], row: dict, key: str = "slug") -> None:
+    for i, r in enumerate(rows):
+        if r[key] == row[key]:
+            rows[i] = {**r, **row}
+            return
+    rows.append(row)
+
+
+def now() -> str:
+    return dt.datetime.now().replace(microsecond=0).isoformat()
+
+
+# ---------------------------------------------------------------- subprocess
+
+def run(cmd: list[str], *, capture: bool = False) -> subprocess.CompletedProcess:
+    print("  $ " + " ".join(q(c) for c in cmd), file=sys.stderr)
+    if DRY_RUN:
+        return subprocess.CompletedProcess(cmd, 0, b"", b"")
+    res = subprocess.run(cmd, capture_output=True)
+    if res.returncode != 0:
+        tail = res.stderr.decode(errors="replace")[-1500:]
+        raise RuntimeError(f"{Path(cmd[0]).name} failed ({res.returncode}):\n{tail}")
+    return res
+
+
+def q(s: str) -> str:
+    return s if re.fullmatch(r"[\w@%+=:,./-]+", s) else "'" + s.replace("'", "'\\''") + "'"
+
+
+def probe(cfg: dict, path: Path) -> dict:
+    res = subprocess.run([cfg["ffprobe"], "-v", "error", "-show_entries",
+                          "format=duration:stream=codec_type,width,height,codec_name",
+                          "-of", "json", str(path)], capture_output=True)
+    if res.returncode != 0:
+        raise RuntimeError(f"ffprobe could not read {path}")
+    data = json.loads(res.stdout or b"{}")
+    streams = data.get("streams", [])
+    v = next((s for s in streams if s.get("codec_type") == "video"), None)
+    return {
+        "duration": float(data.get("format", {}).get("duration", 0) or 0),
+        "has_audio": any(s.get("codec_type") == "audio" for s in streams),
+        "width": int(v["width"]) if v else 0,
+        "height": int(v["height"]) if v else 0,
+    }
+
+
+def bar_energies(cfg: dict, audio: Path, bpm: float, beats: int) -> list[float]:
+    """Decode to mono 2 kHz and sum squares per bar. Assumes the render starts on bar 1."""
+    rate = 2000
+    res = subprocess.run([cfg["ffmpeg"], "-v", "error", "-i", str(audio), "-ac", "1",
+                          "-ar", str(rate), "-f", "s16le", "-"], capture_output=True)
+    if res.returncode != 0:
+        raise RuntimeError(f"could not decode {audio}")
+    samples = array.array("h")
+    samples.frombytes(res.stdout[: len(res.stdout) // 2 * 2])
+    per_bar = bar_seconds(bpm, beats) * rate
+    out, i = [], 0
+    while (i + 1) * per_bar <= len(samples):
+        a, b = int(i * per_bar), int((i + 1) * per_bar)
+        out.append(sum(x * x for x in samples[a:b]) / max(1, b - a))
+        i += 1
+    return out
+
+
+def measure_loudness(cfg: dict, audio_input: list[str], t: float | None) -> dict | None:
+    cmd = [cfg["ffmpeg"], "-hide_banner", "-nostats", *audio_input]
+    if t:
+        cmd += ["-t", f"{t:.3f}"]
+    cmd += ["-af", f"loudnorm=I={cfg['loudness_lufs']}:TP=-1:LRA=11:print_format=json",
+            "-vn", "-f", "null", "-"]
+    if DRY_RUN:
+        print("  $ " + " ".join(q(c) for c in cmd), file=sys.stderr)
+        return None
+    res = subprocess.run(cmd, capture_output=True)
+    err = res.stderr.decode(errors="replace")
+    m = re.findall(r"\{[^{}]*\"input_i\"[^{}]*\}", err, re.S)
+    return json.loads(m[-1]) if m else None
+
+
+# ---------------------------------------------------------------- catalog
+
+@dataclass
+class CatalogSet:
+    set_id: int
+    name: str
+    als_path: str
+    bpm: float
+    beats: int
+    preview: str
+    key: str = ""
+    extra: dict = field(default_factory=dict)
+
+
+def open_catalog(cfg: dict) -> sqlite3.Connection:
+    if not cfg["db"].exists():
+        sys.exit(f"catalog not found: {cfg['db']}")
+    con = sqlite3.connect(f"file:{cfg['db']}?mode=ro", uri=True)
+    con.row_factory = sqlite3.Row
+    return con
+
+
+def set_ids_for_list(con: sqlite3.Connection, list_name: str) -> list[int]:
+    rows = con.execute(
+        "SELECT s.id FROM lists l JOIN list_items li ON li.list_id = l.id "
+        "JOIN sets s ON s.als_path = li.als_path WHERE l.name = ? COLLATE NOCASE "
+        "ORDER BY li.added_at", (list_name,)).fetchall()
+    if not rows:
+        names = [r[0] for r in con.execute("SELECT name FROM lists")]
+        sys.exit(f"list '{list_name}' is empty or missing; lists: {', '.join(names)}")
+    return [r[0] for r in rows]
+
+
+def load_set(con: sqlite3.Connection, set_id: int) -> CatalogSet:
+    r = con.execute(
+        "SELECT s.id, s.als_path, s.tempo, s.time_signature, p.name AS pname, p.folder_path "
+        "FROM sets s JOIN projects p ON p.id = s.project_id WHERE s.id = ?", (set_id,)).fetchone()
+    if not r:
+        raise LookupError(f"set {set_id} not in catalog")
+    pv = con.execute(
+        "SELECT audio_path FROM previews WHERE set_id = ? "
+        "ORDER BY is_primary DESC, confidence DESC, mtime DESC LIMIT 1", (set_id,)).fetchone()
+    if not pv:
+        raise LookupError(f"set {set_id} has no preview render")
+    preview = pv[0]
+    if not os.path.isabs(preview):
+        preview = os.path.join(r["folder_path"], preview)
+    name = re.sub(r"\s+Project$", "", r["pname"]).strip()
+    stem = Path(r["als_path"]).stem
+    beats = 4
+    if r["time_signature"] and "/" in r["time_signature"]:
+        try:
+            beats = int(r["time_signature"].split("/")[0])
+        except ValueError:
+            pass
+    if not r["tempo"]:
+        raise LookupError(f"set {set_id} has no tempo")
+    return CatalogSet(set_id=r["id"], name=name, als_path=r["als_path"], bpm=float(r["tempo"]),
+                      beats=beats, preview=preview, key=parse_key(name) or parse_key(stem))
+
+
+# ---------------------------------------------------------------- loops
+
+def cmd_loops(cfg: dict, args) -> int:
+    P = paths(cfg)
+    con = open_catalog(cfg)
+    ids = list(args.ids or [])
+    if args.list:
+        ids += set_ids_for_list(con, args.list)
+    if not ids:
+        sys.exit("give --ids or --list")
+    if args.audio and len(ids) != 1:
+        sys.exit("--audio overrides the preview for one set only")
+    belt = read_csv(P["belt"], BELT_COLUMNS)
+    bars = args.bars or int(cfg["bars"])
+    failures = 0
+    for sid in ids:
+        try:
+            cs = load_set(con, sid)
+        except LookupError as e:
+            print(f"skip {sid}: {e}", file=sys.stderr)
+            failures += 1
+            continue
+        existing = next((r for r in belt if r["set_id"] == str(sid)), None)
+        if existing and not args.force:
+            print(f"skip {sid}: already on the belt as '{existing['slug']}' (use --force)")
+            continue
+        slug = existing["slug"] if existing else unique_slug(slugify(cs.name) or f"set-{sid}", sid, belt)
+        src = Path(args.audio or cs.preview)
+        if not src.exists():
+            print(f"skip {sid}: preview missing on disk: {src}", file=sys.stderr)
+            failures += 1
+            continue
+        try:
+            row = cut_loop(cfg, P, cs, slug, src, bars, args)
+        except RuntimeError as e:
+            print(f"fail {slug}: {e}", file=sys.stderr)
+            failures += 1
+            continue
+        upsert(belt, row)
+        write_csv(P["belt"], BELT_COLUMNS, belt)
+        print(f"loop  {slug}: {row['bpm']} BPM {row['key'] or '(no key)'}, "
+              f"{bars} bars from {row['start_s']} s -> {row['wav']}")
+    return 1 if failures else 0
+
+
+def unique_slug(base: str, set_id: int, belt: list[dict]) -> str:
+    taken = {r["slug"] for r in belt}
+    return base if base not in taken else f"{base}-{set_id}"
+
+
+def cut_loop(cfg: dict, P: dict, cs: CatalogSet, slug: str, src: Path, bars: int, args) -> dict:
+    info = probe(cfg, src)
+    length = bars_to_seconds(cs.bpm, bars, cs.beats)
+    bar_len = bar_seconds(cs.bpm, cs.beats)
+    if args.at is not None:
+        start = float(args.at)
+    elif args.at_bar is not None:
+        start = (args.at_bar - 1) * bar_len
+    else:
+        energies = bar_energies(cfg, src, cs.bpm, cs.beats) if not DRY_RUN else []
+        start = loudest_start_bar(energies, bars) * bar_len
+    if info["duration"] and start + length > info["duration"]:
+        start = max(0.0, info["duration"] - length)
+        length = min(length, info["duration"])
+    out_dir = P["loops"] / slug
+    if not DRY_RUN:
+        out_dir.mkdir(parents=True, exist_ok=True)
+    bpm = fmt_bpm(cs.bpm)
+    base = "_".join(x for x in (slug, f"{bpm}bpm", key_short(cs.key)) if x)
+    wav, mp3 = out_dir / f"{base}.wav", out_dir / f"{base}.mp3"
+    # Sample-accurate cut with atrim; 5 ms fades so the loop does not click.
+    af = (f"atrim=start={start:.6f}:duration={length:.6f},asetpts=PTS-STARTPTS,"
+          f"afade=t=in:d=0.005,afade=t=out:st={max(0.0, length - 0.005):.6f}:d=0.005")
+    run([cfg["ffmpeg"], "-v", "error", "-y", "-i", str(src), "-af", af, "-c:a", "pcm_s24le",
+         str(wav)])
+    # Port of process/encode.js: libmp3lame CBR 320k.
+    run([cfg["ffmpeg"], "-v", "error", "-y", "-i", str(wav), "-c:a", "libmp3lame", "-b:a", "320k",
+         str(mp3)])
+    return {"slug": slug, "set_id": str(cs.set_id), "name": cs.name, "bpm": bpm, "key": cs.key,
+            "bars": str(bars), "start_s": f"{start:.3f}", "duration_s": f"{length:.3f}",
+            "source": str(src), "wav": str(wav), "mp3": str(mp3), "clip": "", "clip_kind": "",
+            "status": "loop", "updated": now()}
+
+
+# ---------------------------------------------------------------- clips
+
+@dataclass
+class ClipJob:
+    slug: str
+    footage: Path            # screen recording, or still image in fallback mode
+    is_still: bool
+    audio: Path | None       # None: use the recording's own audio
+    duration: float | None   # only bounds still/looped inputs; recordings are never cut
+    text_png: Path
+    out: Path
+    bpm: str
+    key: str
+    viz: str = "osc"
+
+
+def make_text_png(cfg: dict, out: Path, bpm: str, key: str) -> None:
+    """Hero BPM, key line, producer name: one transparent 1080x1920 PNG (template C)."""
+    key_line = "BPM" + (f"  {key_for_title(key)}" if key else "")
+    run([cfg["gm"], "convert", "-size", f"{FRAME_W}x{FRAME_H}", "xc:none",
+         "-fill", "white", "-font", cfg["font"],
+         "-pointsize", "560", "-draw", f"text 15,{HERO_BASELINE} '{gm_text(bpm)}'",
+         "-pointsize", "72", "-draw", f"text 62,{KEY_BASELINE} '{gm_text(key_line)}'",
+         "-fill", MUTED, "-font", cfg["small_font"],
+         "-pointsize", "34", "-draw", f"text 62,{NAME_BASELINE} '{gm_text(cfg['producer'])}'",
+         str(out)])
+
+
+def render_ffmpeg(cfg: dict, job: ClipJob) -> None:
+    # Every looped image input gets an input-side -t. Without it a `-loop 1` still keeps
+    # producing frames after the audio (and the visualizer) end, and the graph never
+    # finishes (measured: stalls at 14.6 s of a 15.2 s loop with the osc visualizer).
+    if job.is_still:
+        src_w, src_h = (1920, 1080) if DRY_RUN else image_size(cfg, job.footage)
+        bound = job.duration
+        inputs = ["-loop", "1", "-framerate", "30", "-t", f"{bound:.3f}", "-i", str(job.footage)]
+    else:
+        info = probe(cfg, job.footage)
+        src_w, src_h = info["width"] or 1920, info["height"] or 1080
+        bound = job.duration or info["duration"] or 600.0
+        inputs = ["-i", str(job.footage)]
+    loop_img = ["-loop", "1", "-framerate", "30", "-t", f"{bound:.3f}", "-i"]
+    inputs += [*loop_img, str(job.text_png)]
+    if job.audio:
+        # `-stream_loop` is not used: a still loops via -loop 1, and a recording is never cut.
+        inputs += ["-i", str(job.audio)]
+        audio_label, audio_in = "2:a", ["-i", str(job.audio)]
+    else:
+        audio_label, audio_in = "0:a", ["-i", str(job.footage)]
+    strip_input = None
+    if job.viz == "strip":
+        strip_png = job.text_png.with_name(f"{job.slug}-strip.png")
+        cmd = [cfg["ffmpeg"], "-v", "error", "-y", *audio_in]
+        if job.duration:
+            cmd += ["-t", f"{job.duration:.3f}"]
+        run(cmd + ["-filter_complex", f"[0:a]showwavespic=s={WAVE_W}x{WAVE_H}:colors=white:"
+                   "split_channels=0", "-frames:v", "1", str(strip_png)])
+        strip_input = 3 if job.audio else 2
+        inputs += [*loop_img, str(strip_png)]
+    measured = measure_loudness(cfg, audio_in, job.duration)
+    graph = clip_filtergraph(src_w=src_w, src_h=src_h, audio=audio_label,
+                             loudnorm=loudnorm_filter(cfg["loudness_lufs"], measured),
+                             viz=job.viz, strip_input=strip_input)
+    cmd = [cfg["ffmpeg"], "-v", "error", "-y", *inputs, "-filter_complex", graph,
+           "-map", "[v]", "-map", "[aud]"]
+    if job.duration:
+        # -shortest does not bound a looped input; -t does (lesson from process/ffmpeg.js).
+        cmd += ["-t", f"{job.duration:.3f}"]
+    cmd += ["-r", "30", "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+            "-pix_fmt", "yuv420p", "-profile:v", "high", "-movflags", "+faststart",
+            "-c:a", cfg["audio_codec"], "-b:a", cfg["audio_bitrate"], "-ar", "48000",
+            str(job.out)]
+    run(cmd)
+
+
+# ---------------------------------------------------------------- effectcraft
+
+PLACEHOLDER = re.compile(r"^\{\{([A-Z0-9_]+)\}\}$")
+
+
+def fill_template(lines: list[str], values: dict, flags: set[str]) -> list[dict]:
+    """Template JSONL -> command list. A string that is exactly "{{NAME}}" becomes
+    values[NAME] with its JSON type; a line with "when": flag is kept only if flag is set."""
+    def sub(x):
+        if isinstance(x, str):
+            m = PLACEHOLDER.match(x)
+            if m:
+                if m.group(1) not in values:
+                    raise KeyError(f"template placeholder {m.group(1)} has no value")
+                return values[m.group(1)]
+            return x
+        if isinstance(x, list):
+            return [sub(i) for i in x]
+        if isinstance(x, dict):
+            return {k: sub(v) for k, v in x.items()}
+        return x
+    out = []
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("//"):
+            continue
+        cmd = json.loads(line)
+        when = cmd.pop("when", None)
+        if when and when not in flags:
+            continue
+        out.append(sub(cmd))
+    return out
+
+
+def effectcraft_values(cfg: dict, job: ClipJob, src_w: int, src_h: int, duration: float) -> dict:
+    v = cfg["viz_effectcraft"]
+    fg_scale = FRAME_W / src_w * 100.0
+    bg_scale = max(FRAME_W / src_w, FRAME_H / src_h) * 100.0
+    vis_h = min(src_h, FOOT_BAND_H / (fg_scale / 100.0))      # source px kept by the mask
+    mask = [0, round((src_h - vis_h) / 2.0, 2), src_w, round(vis_h, 2)]
+    audio = job.audio or job.footage
+    return {
+        "DURATION": round(duration, 3),
+        "IMPORTS": sorted({str(job.footage), str(audio)}),
+        "FOOTAGE_ITEM": job.footage.name, "AUDIO_ITEM": audio.name,
+        "BPM": job.bpm, "KEY_LINE": "BPM" + (f"  {key_for_title(job.key)}" if job.key else ""),
+        "PRODUCER": cfg["producer"], "NAME_FONT": cfg.get("effectcraft_name_font", "Arial"),
+        "BG_SCALE": round(bg_scale, 3), "FG_SCALE": round(fg_scale, 3), "FG_MASK": mask,
+        "SCOPE_Y": v["scope_y"], "MAX_HEIGHT": v["maximum_height"],
+        "AUDIO_DURATION_MS": v["audio_duration_ms"], "DISPLAYED_SAMPLES": v["displayed_samples"],
+        "THICKNESS": v["thickness"], "SOFTNESS": v["softness"],
+        "DISPLAY_OPTIONS": v["display_options"], "DARKEN_OPACITY": v["darken_opacity"],
+    }
+
+
+def render_effectcraft(cfg: dict, job: ClipJob) -> None:
+    """Fill templates/osc-9x16.jsonl, build a per-clip .ecproj, point the Audio Waveform at
+    the audio layer by numeric id, render H.264, then loudnorm the audio only if needed."""
+    ec = cfg["effectcraft"]
+    if not DRY_RUN and not os.access(ec, os.X_OK):
+        raise RuntimeError(f"effectcraft-cli not found at {ec}; use --renderer ffmpeg")
+    if job.viz != "osc":
+        raise RuntimeError("the effectcraft template only has the osc visualizer; "
+                           "use --renderer ffmpeg for bars or strip")
+    if job.is_still:
+        src_w, src_h = (1920, 1080) if DRY_RUN else image_size(cfg, job.footage)
+        duration = job.duration
+    else:
+        info = probe(cfg, job.footage)
+        src_w, src_h = info["width"] or 1920, info["height"] or 1080
+        # A recording is never cut: the comp is as long as the recording.
+        duration = min(job.duration, info["duration"]) if job.duration else info["duration"]
+    flags = set() if job.audio else {"audio_is_footage"}
+    template = REPO / cfg.get("effectcraft_template", "templates/osc-9x16.jsonl")
+    cmds = fill_template(template.read_text().splitlines(),
+                         effectcraft_values(cfg, job, src_w, src_h, duration), flags)
+    work = job.text_png.parent
+    steps, proj = work / f"{job.slug}.ec.jsonl", work / f"{job.slug}.ecproj"
+    raw = job.out.with_name(job.out.stem + ".ec-raw.mp4")
+    if not DRY_RUN:
+        steps.write_text("".join(json.dumps(c) + "\n" for c in cmds))
+    env = {**os.environ, "EFFECTCRAFT_FONT_DIRS": str(REPO / "assets" / "fonts")}
+    run_env(env, [ec, "run", "--commands", str(steps), "--empty", "--save-as", str(proj)])
+    # Layer-reference parameters take the layer's numeric id ("#5" silently stays null).
+    if DRY_RUN:
+        audio_id = 0
+    else:
+        info_json = json.loads(run_env(env, [ec, "info", str(proj), "--json"]).stdout)
+        layers = info_json["activeComp"]["layers"]
+        audio_id = next(l["id"] for l in layers if l["index"] == 5)
+    run_env(env, [ec, "set", "Main", "#4", "effects/#1/audioLayer", str(audio_id), str(proj),
+                  "--save"])
+    if not DRY_RUN:
+        got = json.loads(run_env(env, [ec, "get", "Main", "#4", "effects/#1/audioLayer",
+                                       str(proj), "--json"]).stdout)
+        if got.get("value") != audio_id:
+            raise RuntimeError(f"audioLayer did not take id {audio_id}: {got}")
+    run_env(env, [ec, "render", "--comp", "Main", "--out", str(raw), "--format", "h264",
+                  "--audio", "on", "--bitrate", str(cfg.get("effectcraft_bitrate_kbps", 10000)),
+                  str(proj)])
+    finish_loudness(cfg, raw, job.out)
+
+
+def finish_loudness(cfg: dict, raw: Path, out: Path) -> None:
+    """Keep the render as is if it is within 1 LU of target; otherwise remux with 2-pass
+    loudnorm (video stream copied)."""
+    target = float(cfg["loudness_lufs"])
+    measured = measure_loudness(cfg, ["-i", str(raw)], None)
+    if DRY_RUN:
+        return
+    try:
+        off = abs(float(measured["input_i"]) - target) if measured else 99.0
+    except ValueError:
+        off = 0.0  # silence: nothing to normalize
+    ln = loudnorm_filter(target, measured)
+    if off <= 1.0 or not ln:
+        os.replace(raw, out)
+        print(f"      loudness {measured and measured.get('input_i')} LUFS, kept as rendered")
+        return
+    run([cfg["ffmpeg"], "-v", "error", "-y", "-i", str(raw), "-map", "0:v", "-map", "0:a",
+         "-c:v", "copy", "-af", f"{ln},aresample=48000", "-c:a", cfg["audio_codec"],
+         "-b:a", cfg["audio_bitrate"], "-ar", "48000", "-movflags", "+faststart", str(out)])
+    raw.unlink()
+    print(f"      loudness {measured.get('input_i')} -> {target} LUFS (remuxed, video copied)")
+
+
+def run_env(env: dict, cmd: list[str]) -> subprocess.CompletedProcess:
+    print("  $ " + " ".join(q(c) for c in cmd), file=sys.stderr)
+    if DRY_RUN:
+        return subprocess.CompletedProcess(cmd, 0, b"{}", b"")
+    res = subprocess.run(cmd, capture_output=True, env=env)
+    if res.returncode != 0:
+        tail = (res.stderr or res.stdout).decode(errors="replace")[-1500:]
+        raise RuntimeError(f"{Path(cmd[0]).name} {cmd[1]} failed ({res.returncode}):\n{tail}")
+    return res
+
+
+RENDERERS = {"ffmpeg": render_ffmpeg, "effectcraft": render_effectcraft}
+
+
+def image_size(cfg: dict, path: Path) -> tuple[int, int]:
+    res = run([cfg["gm"], "identify", "-format", "%w %h", str(path)], capture=True)
+    w, h = res.stdout.decode().split()[:2]
+    return int(w), int(h)
+
+
+def find_recording(inbox: Path, slug: str) -> Path | None:
+    for ext in (".mov", ".mp4", ".MOV", ".MP4", ".m4v"):
+        p = inbox / f"{slug}{ext}"
+        if p.exists():
+            return p
+    return None
+
+
+def cmd_clips(cfg: dict, args) -> int:
+    P = paths(cfg)
+    belt = read_csv(P["belt"], BELT_COLUMNS)
+    rows = [r for r in belt if not args.slugs or r["slug"] in args.slugs]
+    if args.slugs:
+        missing = set(args.slugs) - {r["slug"] for r in rows}
+        for m in sorted(missing):
+            print(f"skip {m}: not on the belt (run `loops` first)", file=sys.stderr)
+    renderer = RENDERERS[args.renderer or cfg["renderer"]]
+    if not DRY_RUN:
+        for k in ("clips", "work", "inbox"):
+            P[k].mkdir(parents=True, exist_ok=True)
+    failures = 0
+    for r in rows:
+        if r["status"] != "loop" and not args.force:
+            continue
+        slug = r["slug"]
+        rec = find_recording(P["inbox"], slug)
+        text_png = P["work"] / f"{slug}-text.png"
+        out = P["clips"] / f"{slug}.mp4"
+        if rec:
+            info = probe(cfg, rec)
+            if info["has_audio"]:
+                job = ClipJob(slug, rec, False, None, None, text_png, out, r["bpm"], r["key"])
+                kind = "recording"
+            elif args.audio_from_loop:
+                # The recording has no sound (Cmd-Shift-5 records mic only). Lay the loop
+                # under it, bounded to the recording's own length; the video is not cut.
+                dur = min(info["duration"], float(r["duration_s"] or 0) or info["duration"])
+                job = ClipJob(slug, rec, False, Path(r["wav"]), dur, text_png, out,
+                              r["bpm"], r["key"])
+                kind = "recording+loop-audio"
+            else:
+                print(f"fail {slug}: {rec.name} has no audio track. Record with sound "
+                      "(see README) or pass --audio-from-loop.", file=sys.stderr)
+                failures += 1
+                continue
+        elif args.still:
+            job = ClipJob(slug, Path(args.still), True, Path(r["wav"]), float(r["duration_s"]),
+                          text_png, out, r["bpm"], r["key"])
+            kind = "still-fallback"
+            print(f"FALLBACK {slug}: no recording in inbox, using still {args.still}")
+        else:
+            print(f"wait {slug}: no recording at {P['inbox'] / (slug + '.mov')} "
+                  "(or pass --still image.png)")
+            continue
+        try:
+            make_text_png(cfg, text_png, r["bpm"], r["key"])
+            job.viz = args.viz
+            renderer(cfg, job)
+        except (RuntimeError, NotImplementedError) as e:
+            print(f"fail {slug}: {e}", file=sys.stderr)
+            failures += 1
+            continue
+        r.update(clip=str(out), clip_kind=f"{kind}:{args.renderer or cfg['renderer']}",
+                 updated=now())
+        if r["status"] == "loop":
+            r["status"] = "clip"
+        write_csv(P["belt"], BELT_COLUMNS, belt)
+        print(f"clip  {slug} [{kind}] -> {out}")
+    return 1 if failures else 0
+
+
+# ---------------------------------------------------------------- pack / queue
+
+def cmd_pack(cfg: dict, args) -> int:
+    P = paths(cfg)
+    belt = read_csv(P["belt"], BELT_COLUMNS)
+    ready = [r for r in belt if status_at_least(r["status"], "clip")]
+    if not ready:
+        print("nothing to pack: no loop has a clip yet")
+        return 0
+    today = dt.date.today()
+    zpath = P["packs"] / f"{today.isoformat()}-loops.zip"
+    top = f"{cfg['producer']} free loops {today.isoformat()}"
+    print(f"pack  {len(ready)} loops -> {zpath}")
+    if not DRY_RUN:
+        P["packs"].mkdir(parents=True, exist_ok=True)
+        tmp = zpath.with_suffix(".zip.tmp")
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr(f"{top}/README.txt", cfg["pack_readme"].format(producer=cfg["producer"]))
+            for r in ready:
+                for f in (r["wav"], r["mp3"]):
+                    if f and Path(f).exists():
+                        z.write(f, f"{top}/{r['slug']}/{Path(f).name}")
+        os.replace(tmp, zpath)
+    for r in ready:
+        if r["status"] == "clip":
+            r["status"], r["updated"] = "packed", now()
+    write_csv(P["belt"], BELT_COLUMNS, belt)
+    refresh_queue(cfg, P, belt, today)
+    return 0
+
+
+def refresh_queue(cfg: dict, P: dict, belt: list[dict], today: dt.date) -> list[dict]:
+    queue = read_csv(P["queue"], QUEUE_COLUMNS)
+    have = {r["slug"] for r in queue}
+    new = [r for r in belt if r["clip"] and r["slug"] not in have
+           and status_at_least(r["status"], "clip")]
+    for d, r in zip(next_dates([x["date"] for x in queue], len(new), today), new):
+        queue.append({"date": d, "slug": r["slug"], "clip": r["clip"],
+                      "caption": caption_for(cfg, r["bpm"], r["key"]),
+                      "status": "queued", "posted_at": ""})
+    write_csv(P["queue"], QUEUE_COLUMNS, queue)
+    print(f"queue {len(new)} added, {sum(1 for x in queue if x['status'] == 'queued')} queued "
+          f"-> {P['queue']}")
+    return queue
+
+
+def cmd_posted(cfg: dict, args) -> int:
+    P = paths(cfg)
+    queue = read_csv(P["queue"], QUEUE_COLUMNS)
+    row = next((r for r in queue if r["slug"] == args.slug), None)
+    if not row:
+        sys.exit(f"{args.slug} is not in {P['queue']}")
+    row["status"], row["posted_at"] = "posted", args.date or dt.date.today().isoformat()
+    write_csv(P["queue"], QUEUE_COLUMNS, queue)
+    belt = read_csv(P["belt"], BELT_COLUMNS)
+    for r in belt:
+        if r["slug"] == args.slug:
+            r["status"], r["updated"] = "posted", now()
+    write_csv(P["belt"], BELT_COLUMNS, belt)
+    print(f"posted {args.slug} on {row['posted_at']}")
+    return 0
+
+
+# ---------------------------------------------------------------- cover
+
+def cmd_cover(cfg: dict, args) -> int:
+    out = Path(os.path.expanduser(args.out)) if args.out else paths(cfg)["root"] / "covers"
+    if not DRY_RUN:
+        out.mkdir(parents=True, exist_ok=True)
+    name = slugify(args.title) or "cover"
+    big, small = out / f"{name}-3000.png", out / f"{name}-1080.png"
+    if args.bg:
+        base = [cfg["gm"], "convert", os.path.expanduser(args.bg), "-resize", "3000x3000^",
+                "-gravity", "center", "-extent", "3000x3000"]
+    else:
+        base = [cfg["gm"], "convert", "-size", "3000x3000", f"xc:{args.color}"]
+    text = gm_text(args.title.upper())
+    pt = min(420, int(2.2639 * 3000 / (len(text) + 5)))   # fit rule from makeCover.js
+    name_text = [] if args.logo else [
+        "-gravity", "south", "-fill", MUTED, "-font", cfg["small_font"],
+        "-pointsize", "90", "-draw", f"text 0,180 '{gm_text(cfg['producer'])}'"]
+    run(base + ["-gravity", "center", "-fill", "white", "-font", cfg["font"],
+                "-pointsize", str(pt), "-draw", f"text 0,0 '{text}'", *name_text, str(big)])
+    if args.logo:
+        logo = paths(cfg)["work"] / "cover-logo.png"
+        if not DRY_RUN:
+            logo.parent.mkdir(parents=True, exist_ok=True)
+        if args.logo_corner:   # small mark, bottom right
+            run([cfg["gm"], "convert", os.path.expanduser(args.logo), "-trim", "+repage",
+                 "-resize", "420x420", str(logo)])
+            geo = ["-gravity", "southeast", "-geometry", "+160+160"]
+        else:                  # full-bleed overlay, as assets/logo.png is drawn
+            run([cfg["gm"], "convert", os.path.expanduser(args.logo), "-resize", "3000x3000!",
+                 str(logo)])
+            geo = ["-geometry", "+0+0"]
+        run([cfg["gm"], "composite", *geo, str(logo), str(big), str(big)])
+    run([cfg["gm"], "convert", str(big), "-resize", "1080x1080", str(small)])
+    print(f"cover {big}\ncover {small}")
+    return 0
+
+
+# ---------------------------------------------------------------- status
+
+def cmd_status(cfg: dict, args) -> int:
+    P = paths(cfg)
+    belt = read_csv(P["belt"], BELT_COLUMNS)
+    queue = read_csv(P["queue"], QUEUE_COLUMNS)
+    print(f"belt  {P['belt']}  ({len(belt)} loops)")
+    counts = {s: sum(1 for r in belt if r["status"] == s) for s in STATUS_ORDER}
+    print("      " + "  ".join(f"{s} {n}" for s, n in counts.items()))
+    for r in belt:
+        print(f"      {r['status']:<7} {r['slug']:<24} {r['bpm']:>5} BPM  {r['key'] or '-':<9} "
+              f"{r['clip_kind'] or ''}")
+    print(f"queue {P['queue']}  ({len(queue)} rows)")
+    for r in queue:
+        print(f"      {r['date']}  {r['status']:<7} {r['slug']:<24} {r['caption']}"
+              + (f"  (posted {r['posted_at']})" if r["posted_at"] else ""))
+    nxt = next((r for r in queue if r["status"] == "queued"), None)
+    if nxt:
+        print(f"next  post {nxt['slug']} on {nxt['date']}: {nxt['clip']}")
+    return 0
+
+
+# ---------------------------------------------------------------- main
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="beatpack", description=__doc__.splitlines()[0])
+    p.add_argument("--config", help="config.json path (default: config.json next to this file)")
+    p.add_argument("--dry-run", action="store_true", help="print commands, write nothing")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("loops", help="cut N-bar loops from catalog previews")
+    s.add_argument("--ids", type=int, nargs="+", help="ableton-library set ids")
+    s.add_argument("--list", help="ableton-library list name, e.g. candidates")
+    s.add_argument("--bars", type=int, help="loop length in bars (default from config, 8)")
+    g = s.add_mutually_exclusive_group()
+    g.add_argument("--at-bar", type=int, help="start at this bar (1-based) instead of the loudest")
+    g.add_argument("--at", type=float, help="start at this many seconds")
+    s.add_argument("--audio", help="use this file instead of the preview (one set), e.g. a stem")
+    s.add_argument("--force", action="store_true", help="re-cut sets already on the belt")
+
+    s = sub.add_parser("clips", help="render 1080x1920 clips from inbox recordings")
+    s.add_argument("slugs", nargs="*", help="only these slugs (default: every loop without a clip)")
+    s.add_argument("--still", help="fallback image for loops with no recording")
+    s.add_argument("--audio-from-loop", action="store_true",
+                   help="if a recording has no audio track, use the loop WAV under it")
+    s.add_argument("--renderer", choices=sorted(RENDERERS),
+                   help="effectcraft (default from config) or ffmpeg (fallback)")
+    s.add_argument("--viz", choices=VIZ_KINDS, default="osc",
+                   help="visualizer: osc (oscilloscope, default), bars (spectrum), strip (static)")
+    s.add_argument("--force", action="store_true", help="re-render clips that exist")
+
+    sub.add_parser("pack", help="zip loops with clips and refresh queue.csv")
+
+    s = sub.add_parser("posted", help="mark a queued clip as posted")
+    s.add_argument("slug")
+    s.add_argument("--date", help="ISO date (default today)")
+
+    s = sub.add_parser("cover", help="3000x3000 and 1080x1080 cover PNGs")
+    s.add_argument("title")
+    s.add_argument("--bg", help="background image (default: flat --color)")
+    s.add_argument("--color", default="#16161a")
+    s.add_argument("--logo", help="transparent PNG overlaid full-frame (e.g. assets/logo.png)")
+    s.add_argument("--logo-corner", action="store_true", help="place --logo small, bottom right")
+    s.add_argument("--out", help="output folder (default <root>/covers)")
+
+    sub.add_parser("status", help="summarize belt.csv and queue.csv")
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    global DRY_RUN
+    args = build_parser().parse_args(argv)
+    DRY_RUN = args.dry_run
+    cfg = load_config(args.config)
+    handler = {"loops": cmd_loops, "clips": cmd_clips, "pack": cmd_pack,
+               "posted": cmd_posted, "cover": cmd_cover, "status": cmd_status}[args.cmd]
+    return handler(cfg, args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

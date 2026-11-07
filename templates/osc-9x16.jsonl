@@ -1,0 +1,30 @@
+{"command":"comp.new","params":{"name":"Main","width":1080,"height":1920,"frameRate":30,"duration":"{{DURATION}}","background":"#0B0B0D"}}
+{"command":"file.import","params":{"paths":"{{IMPORTS}}"}}
+{"command":"layer.addItem","params":{"item":"{{FOOTAGE_ITEM}}"}}
+{"command":"layer.newSolid","params":{"name":"Darken","color":"#000000"}}
+{"command":"layer.addItem","params":{"item":"{{FOOTAGE_ITEM}}"}}
+{"command":"layer.addItem","params":{"item":"{{AUDIO_ITEM}}"}}
+{"command":"layer.newSolid","params":{"name":"Scope","color":"#000000"}}
+{"command":"layer.newText","params":{"text":"{{BPM}}","name":"BPM","position":[60,640],"justify":"left","font":"Bebas Neue","size":520,"fill":"#ffffff"}}
+{"command":"layer.newText","params":{"text":"{{KEY_LINE}}","name":"Key","position":[64,735],"justify":"left","font":"Bebas Neue","size":72,"fill":"#ffffff"}}
+{"command":"layer.newText","params":{"text":"{{PRODUCER}}","name":"Name","position":[64,1520],"justify":"left","font":"{{NAME_FONT}}","size":34,"fill":"#A8A8AD"}}
+{"command":"prop.set","params":{"layer":"#8","path":"transform/scale","value":["{{BG_SCALE}}","{{BG_SCALE}}",100]}}
+{"command":"effect.apply","params":{"effect":"Gaussian Blur","layers":["#8"]}}
+{"command":"prop.set","params":{"layer":"#8","path":"effects/#1/blurriness","value":60}}
+{"command":"prop.set","params":{"layer":"#7","path":"transform/opacity","value":"{{DARKEN_OPACITY}}"}}
+{"command":"prop.set","params":{"layer":"#6","path":"transform/scale","value":["{{FG_SCALE}}","{{FG_SCALE}}",100]}}
+{"command":"layer.addMask","params":{"layer":"#6","shape":"rect","rect":"{{FG_MASK}}"}}
+{"command":"prop.set","params":{"layer":"#6","path":"transform/position","value":[540,1090,0]}}
+{"command":"layer.setSwitch","params":{"layers":["#6","#8"],"switch":"audio","value":false}}
+{"when":"audio_is_footage","command":"layer.setSwitch","params":{"layers":["#5"],"switch":"video","value":false}}
+{"command":"effect.apply","params":{"effect":"Audio Waveform","layers":["#4"]}}
+{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/startPoint","value":[60,"{{SCOPE_Y}}"]}}
+{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/endPoint","value":[960,"{{SCOPE_Y}}"]}}
+{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/maximumHeight","value":"{{MAX_HEIGHT}}"}}
+{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/audioDuration","value":"{{AUDIO_DURATION_MS}}"}}
+{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/displayedSamples","value":"{{DISPLAYED_SAMPLES}}"}}
+{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/thickness","value":"{{THICKNESS}}"}}
+{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/softness","value":"{{SOFTNESS}}"}}
+{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/outsideColor","value":[1,1,1,1]}}
+{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/insideColor","value":[1,1,1,1]}}
+{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/displayOptions","value":"{{DISPLAY_OPTIONS}}"}}

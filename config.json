@@ -1,0 +1,33 @@
+{
+  "producer": "barlitxs",
+  "root": "~/Music/loopbelt",
+  "db": "~/Library/Application Support/ableton-library/library.db",
+  "font": "assets/fonts/BebasNeue-Regular.ttf",
+  "small_font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+  "ffmpeg": "/opt/homebrew/bin/ffmpeg",
+  "ffprobe": "/opt/homebrew/bin/ffprobe",
+  "gm": "/opt/homebrew/bin/gm",
+  "bars": 8,
+  "loudness_lufs": -14,
+  "audio_codec": "aac_at",
+  "audio_bitrate": "256k",
+  "caption": "{bpm} BPM{key_part}. Free loop in bio.",
+  "renderer": "effectcraft",
+  "effectcraft": "~/workspace/effectcraft/repo/target/release/effectcraft-cli",
+  "effectcraft_version": "0.21.0",
+  "effectcraft_commit": "bb2d2005cee68458a10ae2cc32d609d070b21744",
+  "effectcraft_template": "templates/osc-9x16.jsonl",
+  "effectcraft_bitrate_kbps": 10000,
+  "effectcraft_name_font": "Arial",
+  "viz_effectcraft": {
+    "scope_y": 1425,
+    "maximum_height": 150,
+    "audio_duration_ms": 120,
+    "displayed_samples": 400,
+    "thickness": 1.75,
+    "softness": 2,
+    "display_options": 1,
+    "_display_options": "0 Digital, 1 Analog lines, 2 Analog dots",
+    "darken_opacity": 86
+  }
+}
