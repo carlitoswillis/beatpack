@@ -2,32 +2,106 @@
   "producer": "barlitxs",
   "root": "~/Music/loopbelt",
   "db": "~/Library/Application Support/ableton-library/library.db",
-  "font": "assets/fonts/BebasNeue-Regular.ttf",
-  "small_font": "/System/Library/Fonts/Supplemental/Arial.ttf",
-  "ffmpeg": "/opt/homebrew/bin/ffmpeg",
-  "ffprobe": "/opt/homebrew/bin/ffprobe",
-  "gm": "/opt/homebrew/bin/gm",
-  "bars": 8,
-  "loudness_lufs": -14,
-  "audio_codec": "aac_at",
-  "audio_bitrate": "256k",
-  "caption": "{bpm} BPM{key_part}. Free loop in bio.",
   "renderer": "effectcraft",
   "effectcraft": "~/workspace/effectcraft/repo/target/release/effectcraft-cli",
   "effectcraft_version": "0.21.0",
   "effectcraft_commit": "bb2d2005cee68458a10ae2cc32d609d070b21744",
   "effectcraft_template": "templates/osc-9x16.jsonl",
   "effectcraft_bitrate_kbps": 10000,
-  "effectcraft_name_font": "Arial",
+  "ffmpeg": "/opt/homebrew/bin/ffmpeg",
+  "ffprobe": "/opt/homebrew/bin/ffprobe",
+  "gm": "/opt/homebrew/bin/gm",
+  "font": "assets/fonts/VCR_OSD_MONO_1.001.ttf",
+  "font_family": "VCR OSD Mono",
+  "fallback_font": "assets/fonts/VT323-Regular.ttf",
+  "fallback_font_family": "VT323",
+  "bars": 8,
+  "loudness_lufs": -14,
+  "audio_codec": "aac_at",
+  "audio_bitrate": "256k",
+  "caption": "{bpm} BPM{key_part}. Free loop in bio.",
+  "title": {
+    "right_x": 1020,
+    "top_y": 280,
+    "title_size": 90,
+    "line_size": 55,
+    "line_pitch": 58,
+    "gap_after_title": 10,
+    "ascent": 0.72,
+    "double_offset": [
+      6,
+      40
+    ],
+    "double_color": null
+  },
+  "palette": [
+    {
+      "name": "black",
+      "bg": "#000000",
+      "ink": "#E6E6E6",
+      "line": "bottom"
+    },
+    {
+      "name": "coral",
+      "bg": "#D4554A",
+      "ink": "#1A1A1A",
+      "line": "left"
+    },
+    {
+      "name": "near-black",
+      "bg": "#0B0B0B",
+      "ink": "#E6E6E6",
+      "line": "bottom"
+    },
+    {
+      "name": "brick",
+      "bg": "#8E2E2A",
+      "ink": "#1A1A1A",
+      "line": "left"
+    },
+    {
+      "name": "maroon",
+      "bg": "#3A1A1C",
+      "ink": "#E6E6E6",
+      "line": "left"
+    },
+    {
+      "name": "salmon",
+      "bg": "#E8837A",
+      "ink": "#1A1A1A",
+      "line": "left"
+    }
+  ],
+  "scope": {
+    "left_x": 40,
+    "left_y": [
+      300,
+      1600
+    ],
+    "bottom_y": 1560,
+    "bottom_x": [
+      120,
+      960
+    ],
+    "amplitude_px": 40
+  },
   "viz_effectcraft": {
-    "scope_y": 1425,
-    "maximum_height": 150,
-    "audio_duration_ms": 120,
-    "displayed_samples": 400,
-    "thickness": 1.75,
-    "softness": 2,
-    "display_options": 1,
-    "_display_options": "0 Digital, 1 Analog lines, 2 Analog dots",
-    "darken_opacity": 86
+    "left": {
+      "display_options": 1,
+      "thickness": 0.8,
+      "softness": 0,
+      "audio_duration_ms": 120,
+      "displayed_samples": 600,
+      "maximum_height": 6
+    },
+    "bottom": {
+      "display_options": 0,
+      "thickness": 1,
+      "softness": 0,
+      "audio_duration_ms": 120,
+      "displayed_samples": 600,
+      "maximum_height": 8
+    },
+    "_display_options": "0 Digital, 1 Analog lines, 2 Analog dots"
   }
 }

@@ -2,7 +2,7 @@
 """beatpack: Ableton catalog -> loops, 9:16 loop clips, free loop packs, covers.
 
 Stdlib only. Safe to run as `python3 -I beatpack.py ...`.
-Renderer is ffmpeg (and GraphicsMagick for text); see README.md.
+Renderers: EffectCraft (default, template JSONL) and ffmpeg + GraphicsMagick (fallback).
 """
 from __future__ import annotations
 
@@ -28,8 +28,12 @@ DEFAULTS = {
     "producer": "barlitxs",
     "root": "~/Music/loopbelt",
     "db": "~/Library/Application Support/ableton-library/library.db",
-    "font": "assets/fonts/BebasNeue-Regular.ttf",
-    "small_font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+    # VCR OSD Mono is the 2021 look; its licence is unresolved (assets/fonts/
+    # VCR_OSD_MONO.LICENSE-STATUS.txt). VT323 (OFL) is the free fallback.
+    "font": "assets/fonts/VCR_OSD_MONO_1.001.ttf",
+    "font_family": "VCR OSD Mono",
+    "fallback_font": "assets/fonts/VT323-Regular.ttf",
+    "fallback_font_family": "VT323",
     "ffmpeg": "ffmpeg",
     "ffprobe": "ffprobe",
     "gm": "gm",
@@ -42,10 +46,30 @@ DEFAULTS = {
     "effectcraft_commit": "bb2d2005cee68458a10ae2cc32d609d070b21744",
     "effectcraft_template": "templates/osc-9x16.jsonl",
     "effectcraft_bitrate_kbps": 10000,
-    "effectcraft_name_font": "Arial",
-    "viz_effectcraft": {"scope_y": 1425, "maximum_height": 150, "darken_opacity": 86, "audio_duration_ms": 120,
-                        "displayed_samples": 400, "thickness": 1.75, "softness": 2,
-                        "display_options": 1},
+    "title": {"right_x": 1020, "top_y": 280, "title_size": 90, "line_size": 55,
+              "line_pitch": 58, "gap_after_title": 10, "ascent": 0.72,
+              "double_offset": [6, 40], "double_color": None},
+    # One flat canvas per clip, rotated down the belt. line: where the 1 px scope runs.
+    "palette": [
+        {"name": "black", "bg": "#000000", "ink": "#E6E6E6", "line": "bottom"},
+        {"name": "coral", "bg": "#D4554A", "ink": "#1A1A1A", "line": "left"},
+        {"name": "near-black", "bg": "#0B0B0B", "ink": "#E6E6E6", "line": "bottom"},
+        {"name": "brick", "bg": "#8E2E2A", "ink": "#1A1A1A", "line": "left"},
+        {"name": "maroon", "bg": "#3A1A1C", "ink": "#E6E6E6", "line": "left"},
+        {"name": "salmon", "bg": "#E8837A", "ink": "#1A1A1A", "line": "left"},
+    ],
+    # Scope geometry (both renderers) and EffectCraft Audio Waveform settings per edge,
+    # from research/15-waveform-match.md: A = vertical on colour canvases, B = horizontal
+    # on dark canvases. Set insideColor AND outsideColor (outside alone stays white).
+    "scope": {"left_x": 40, "left_y": [300, 1600], "bottom_y": 1560, "bottom_x": [120, 960],
+              "amplitude_px": 40},
+    "viz_effectcraft": {
+        "left": {"display_options": 1, "thickness": 0.8, "softness": 0,
+                 "audio_duration_ms": 120, "displayed_samples": 600, "maximum_height": 6},
+        "bottom": {"display_options": 0, "thickness": 1, "softness": 0,
+                   "audio_duration_ms": 120, "displayed_samples": 600, "maximum_height": 8},
+        "_display_options": "0 Digital, 1 Analog lines, 2 Analog dots",
+    },
     "caption": "{bpm} BPM{key_part}. Free loop in bio.",
     "pack_readme": (
         "Free loops by {producer}.\n\n"
@@ -55,24 +79,16 @@ DEFAULTS = {
     ),
 }
 
-BELT_COLUMNS = ["slug", "set_id", "name", "bpm", "key", "bars", "start_s",
-                "duration_s", "source", "wav", "mp3", "clip", "clip_kind",
+BELT_COLUMNS = ["slug", "set_id", "name", "title", "bpm", "key", "bars", "start_s",
+                "duration_s", "source", "wav", "mp3", "clip", "clip_kind", "palette",
                 "status", "updated"]
 QUEUE_COLUMNS = ["date", "slug", "clip", "caption", "status", "posted_at"]
 STATUS_ORDER = ["loop", "clip", "packed", "posted"]
 
-# Frame grid for the 1080x1920 clip (template C "mono", see README / research 13).
+# Frame grid for the 1080x1920 clip: the 2021 barlitxs look (research/16). Flat canvas,
+# footage as a full-width panel in the middle band, title block top right, 1 px scope.
 FRAME_W, FRAME_H = 1080, 1920
-MARGIN_X = 60
-HERO_BASELINE = 660        # BPM number, Bebas 560 pt
-KEY_BASELINE = 745         # "BPM  F MINOR", Bebas 72 pt
-FOOT_CENTER_Y = 1090       # footage band ~820..1360, centered here
-FOOT_MAX_H = 608           # ffmpeg: 16:9 at 1080 wide; taller footage is center-cropped
-FOOT_BAND_H = 540          # effectcraft template: visible footage band (y 820-1360)
-WAVE_Y, WAVE_W, WAVE_H = 1400, FRAME_W - 2 * MARGIN_X, 110
-NAME_BASELINE = 1545       # producer name, 34 pt, muted
-MUTED = "#A8A8AD"
-BG_GAIN = 0.14          # background brightness multiplier (near-black)
+FOOT_BAND_Y, FOOT_BAND_H = 760, 540
 
 DRY_RUN = False
 
@@ -90,11 +106,13 @@ def load_config(path: str | None) -> dict:
     cfg["db"] = Path(os.path.expanduser(cfg["db"]))
     for tool in ("ffmpeg", "ffprobe", "gm"):
         cfg[tool] = resolve_tool(cfg[tool])
-    cfg["font"] = resolve_font(cfg["font"])
+    cfg["font"], cfg["font_family"] = resolve_font(cfg)
     cfg["effectcraft"] = os.path.expanduser(cfg["effectcraft"])
-    cfg["viz_effectcraft"] = {**DEFAULTS["viz_effectcraft"], **cfg.get("viz_effectcraft", {})}
-    sf = Path(os.path.expanduser(cfg["small_font"]))
-    cfg["small_font"] = str(sf) if sf.exists() else cfg["font"]
+    for k in ("title", "scope"):
+        cfg[k] = {**DEFAULTS[k], **cfg.get(k, {})}
+    ve = cfg.get("viz_effectcraft", {})
+    cfg["viz_effectcraft"] = {e: {**DEFAULTS["viz_effectcraft"][e], **ve.get(e, {})}
+                              for e in ("left", "bottom")}
     return cfg
 
 
@@ -108,16 +126,14 @@ def resolve_tool(name: str) -> str:
     return brew if os.access(brew, os.X_OK) else name
 
 
-def resolve_font(font: str) -> str:
-    candidates = [Path(os.path.expanduser(font))]
-    if not candidates[0].is_absolute():
-        candidates = [REPO / font]
-    candidates += sorted((REPO / "assets").glob("**/*.ttf"))
-    candidates.append(Path("/System/Library/Fonts/Supplemental/Arial.ttf"))
-    for c in candidates:
-        if c.exists():
-            return str(c)
-    sys.exit("no .ttf font found; set \"font\" in config.json")
+def resolve_font(cfg: dict) -> tuple[str, str]:
+    """(path, family). The configured font, else the OFL fallback."""
+    for key, fam in (("font", "font_family"), ("fallback_font", "fallback_font_family")):
+        f = Path(os.path.expanduser(cfg[key]))
+        f = f if f.is_absolute() else REPO / f
+        if f.exists():
+            return str(f), cfg[fam]
+    sys.exit("no font found; set \"font\" in config.json")
 
 
 def paths(cfg: dict) -> dict:
@@ -171,14 +187,42 @@ def parse_key(text: str) -> str:
     return f"{note.upper()}{acc} {mode}"
 
 
-def key_for_title(key: str) -> str:
-    """Bebas Neue is caps-only and has no flat glyph: 'Db major' would read 'DB MAJOR'."""
-    if not key:
-        return ""
-    note, mode = key.split(" ", 1)
-    if len(note) == 2 and note[1] == "b":
-        note = f"{note[0]} FLAT"
-    return f"{note} {mode}".upper()
+def key_line(key: str) -> str:
+    """'Bb major' -> 'bb major' (the 2021 block writes keys in lower case)."""
+    return key.lower()
+
+
+def clean_title(name: str, bpm: str = "") -> str:
+    """'regal 180 bpm a minor' -> 'REGAL'; 'ssg 126 Db major' (bpm 126) -> 'SSG'."""
+    s = re.sub(r"\(prod\.[^)]*\)", " ", name, flags=re.I)
+    s = re.sub(r"\d+(\.\d+)?\s?bpm", " ", s, flags=re.I)
+    s = KEY_RE.sub(" ", s.lower())
+    if bpm:
+        s = re.sub(rf"(?<![0-9]){re.escape(bpm)}(?![0-9])", " ", s)
+    s = re.sub(r"\s+", " ", s).strip(" -_")
+    return (s or name).upper()
+
+
+def title_lines(cfg: dict, title: str, bpm: str, key: str) -> list[tuple[str, int, int]]:
+    """The four-line block as (text, size px, top y), in the owner's 2021 order:
+    title, prod. name, bpm, key (key omitted if unknown)."""
+    t = cfg["title"]
+    texts = [title, f"prod. {cfg['producer']}", f"{bpm} bpm"] + ([key_line(key)] if key else [])
+    out, y = [(texts[0], t["title_size"], t["top_y"])], t["top_y"] + t["title_size"] + t["gap_after_title"]
+    for tx in texts[1:]:
+        out.append((tx, t["line_size"], y))
+        y += t["line_pitch"]
+    return out
+
+
+def pick_palette(cfg: dict, belt: list[dict], row: dict, name: str | None = None) -> dict:
+    """A named palette entry, else the row's stored one, else rotate by belt position."""
+    pal = cfg["palette"]
+    want = name or row.get("palette")
+    for p in pal:
+        if p["name"] == want:
+            return p
+    return pal[belt.index(row) % len(pal)]
 
 
 def key_short(key: str) -> str:
@@ -231,67 +275,80 @@ def gm_text(s: str) -> str:
 
 
 def footage_geometry(src_w: int, src_h: int) -> tuple[int, int, int]:
-    """Scaled footage height (even), crop height, and overlay y for the frame grid."""
+    """Scaled footage height (even), crop height, and overlay y inside the middle band."""
     h = int(round(src_h * FRAME_W / src_w / 2.0)) * 2
-    crop_h = min(h, FOOT_MAX_H)
-    y = FOOT_CENTER_Y - crop_h // 2
-    return h, crop_h, y
+    crop_h = min(h, FOOT_BAND_H)
+    return h, crop_h, FOOT_BAND_Y + (FOOT_BAND_H - crop_h) // 2
 
 
 VIZ_KINDS = ("osc", "bars", "strip")
 
 
-def viz_chain(viz: str, src: str, out: str, strip_input: int | None = None) -> str:
-    """Visualizer box (WAVE_W x WAVE_H, white, transparent ground) from audio label `src`.
+def scope_box(cfg: dict, line: str) -> tuple[int, int, int, int, bool]:
+    """(x, y, w, h, vertical) of the visualizer box for a palette's line edge."""
+    sc, a = cfg["scope"], cfg["scope"]["amplitude_px"]
+    if line == "left":
+        y0, y1 = sc["left_y"]
+        return sc["left_x"] - a // 2, y0, a, y1 - y0, True
+    x0, x1 = sc["bottom_x"]
+    return x0, sc["bottom_y"] - a // 2, x1 - x0, a, False
 
-    osc:   oscilloscope, showwaves over a ~40 ms window (n=2 samples per column at 48 kHz),
-           so it moves with what is playing right now.
-    bars:  showfreqs spectrum, log/log, thresholded and cut into 60 bars.
-    strip: static whole-loop showwavespic PNG (input `strip_input`), the fallback.
+
+def ff_color(hex_color: str) -> str:
+    return "0x" + hex_color.lstrip("#")
+
+
+def viz_chain(viz: str, src: str, out: str, *, box: tuple, ink: str, bound: float,
+              strip_input: int | None = None) -> str:
+    """Visualizer in the ink colour with a transparent ground, from audio label `src`.
+
+    Drawn white as a mask, rotated for a vertical edge, then alphamerged onto a solid
+    of the ink colour (colorkey on black would also eat a dark ink).
+    osc:   1 px oscilloscope trace (showwaves p2p) at 30 fps (each frame shows the last ~33 ms).
+    bars:  showfreqs spectrum, thresholded into 60 bars.
+    strip: static whole-loop showwavespic (input `strip_input`), the fallback.
     """
-    key = "format=rgba,colorkey=black:0.1:0.1"
+    _, _, w, h, vertical = box
+    length, amp = (h, w) if vertical else (w, h)
+    rot = ",transpose=clock" if vertical else ""
     if viz == "osc":
-        return (f"[{src}]aresample=48000,aformat=channel_layouts=mono,"
-                f"showwaves=s={WAVE_W}x{WAVE_H}:mode=p2p:draw=full:n=2:scale=sqrt:colors=white,"
-                f"fps=30,format=gray,dilation,dilation,{key}[{out}]")
-    if viz == "bars":
+        mask = (f"[{src}]aformat=channel_layouts=mono,showwaves=s={length}x{amp}:mode=p2p:"
+                f"draw=full:rate=30:colors=white,format=gray{rot}[{out}m]")
+    elif viz == "bars":
         bars = 60
-        return (f"[{src}]aformat=channel_layouts=mono,"
-                f"showfreqs=s={WAVE_W}x{WAVE_H}:mode=bar:ascale=log:fscale=log:"
-                f"win_size=2048:overlap=0.5:averaging=2:colors=white:rate=30,"
-                f"format=gray,scale={bars}:{WAVE_H}:flags=area,"
-                f"lut=y='if(gt(val,96),255,0)',scale={WAVE_W}:{WAVE_H}:flags=neighbor,"
-                f"drawgrid=w={WAVE_W // bars}:h=ih+1:t=4:c=black,{key}[{out}]")
-    if viz == "strip":
+        mask = (f"[{src}]aformat=channel_layouts=mono,showfreqs=s={length}x{amp}:mode=bar:"
+                "ascale=log:fscale=log:win_size=2048:overlap=0.5:averaging=2:colors=white:rate=30,"
+                f"format=gray,scale={bars}:{amp}:flags=area,lut=y='if(gt(val,96),255,0)',"
+                f"scale={length}:{amp}:flags=neighbor,drawgrid=w={max(1, length // bars)}:h=ih+1:"
+                f"t=3:c=black{rot}[{out}m]")
+    elif viz == "strip":
         if strip_input is None:
             raise ValueError("strip needs a waveform PNG input")
-        return f"[{src}]anullsink;[{strip_input}:v]{key}[{out}]"
-    raise ValueError(f"unknown viz {viz!r}; choose from {', '.join(VIZ_KINDS)}")
+        mask = f"[{src}]anullsink;[{strip_input}:v]format=gray{rot}[{out}m]"
+    else:
+        raise ValueError(f"unknown viz {viz!r}; choose from {', '.join(VIZ_KINDS)}")
+    return (f"{mask};color=c={ff_color(ink)}:s={w}x{h}:r=30:d={bound:.3f}[{out}c];"
+            f"[{out}c][{out}m]alphamerge[{out}]")
 
 
 def clip_filtergraph(*, src_w: int, src_h: int, audio: str, loudnorm: str | None,
-                     viz: str = "osc", strip_input: int | None = None) -> str:
-    """Filtergraph for the 9:16 clip.
+                     palette: dict, box: tuple, bound: float, viz: str = "osc",
+                     strip_input: int | None = None) -> str:
+    """Filtergraph for the 9:16 clip (2021 look).
 
-    Inputs: [0:v] footage (screen recording or looped still), [1:v] text PNG
-    (looped), `audio` = the audio input label ('0:a' for a recording).
-    Footage: full width, centered in the band, over a blurred near-black copy.
-    Visualizer: `viz_chain` from the same audio, colorkeyed to transparent.
+    Inputs: [0:v] footage (screen recording or still), [1:v] title-block PNG,
+    `audio` = the audio input label ('0:a' for a recording, never re-cut).
     """
     h, crop_h, fy = footage_geometry(src_w, src_h)
+    x, y = box[0], box[1]
     parts = [
-        "[0:v]fps=30,split=2[fa][fb]",
-        # Blur at quarter size, then scale up: same look, far faster than gblur at full size.
-        f"[fa]scale={FRAME_W // 4}:{FRAME_H // 4}:force_original_aspect_ratio=increase,"
-        f"crop={FRAME_W // 4}:{FRAME_H // 4},gblur=sigma=12,"
-        # Multiply, not subtract: the brief's gm `-modulate 12` is ~12-15% of the original.
-        f"eq=saturation=0.4,colorchannelmixer=rr={BG_GAIN}:gg={BG_GAIN}:bb={BG_GAIN},"
-        f"scale={FRAME_W}:{FRAME_H},setsar=1[bg]",
-        f"[fb]scale={FRAME_W}:{h},crop={FRAME_W}:{crop_h},setsar=1[fg]",
-        f"[bg][fg]overlay=0:{fy}[base]",
+        f"color=c={ff_color(palette['bg'])}:s={FRAME_W}x{FRAME_H}:r=30:d={bound:.3f}[cv]",
+        f"[0:v]fps=30,scale={FRAME_W}:{h},crop={FRAME_W}:{crop_h},setsar=1[fg]",
+        f"[cv][fg]overlay=0:{fy}:shortest=1[base]",
         f"[{audio}]asplit=2[aw][an]",
-        viz_chain(viz, "aw", "wv", strip_input),
-        f"[base][wv]overlay={MARGIN_X}:{WAVE_Y}:shortest=1[v1]",
+        viz_chain(viz, "aw", "wv", box=box, ink=palette["ink"], bound=bound,
+                  strip_input=strip_input),
+        f"[base][wv]overlay={x}:{y}:shortest=1[v1]",
         "[1:v]format=rgba[tx]",
         "[v1][tx]overlay=0:0:shortest=1,format=yuv420p[v]",
         f"[an]{loudnorm + ',' if loudnorm else ''}aresample=48000[aud]",
@@ -555,7 +612,8 @@ def cut_loop(cfg: dict, P: dict, cs: CatalogSet, slug: str, src: Path, bars: int
     # Port of process/encode.js: libmp3lame CBR 320k.
     run([cfg["ffmpeg"], "-v", "error", "-y", "-i", str(wav), "-c:a", "libmp3lame", "-b:a", "320k",
          str(mp3)])
-    return {"slug": slug, "set_id": str(cs.set_id), "name": cs.name, "bpm": bpm, "key": cs.key,
+    return {"slug": slug, "set_id": str(cs.set_id), "name": cs.name,
+            "title": clean_title(cs.name, bpm), "bpm": bpm, "key": cs.key,
             "bars": str(bars), "start_s": f"{start:.3f}", "duration_s": f"{length:.3f}",
             "source": str(src), "wav": str(wav), "mp3": str(mp3), "clip": "", "clip_kind": "",
             "status": "loop", "updated": now()}
@@ -574,19 +632,32 @@ class ClipJob:
     out: Path
     bpm: str
     key: str
+    title: str = ""
+    palette: dict = field(default_factory=dict)
     viz: str = "osc"
 
 
-def make_text_png(cfg: dict, out: Path, bpm: str, key: str) -> None:
-    """Hero BPM, key line, producer name: one transparent 1080x1920 PNG (template C)."""
-    key_line = "BPM" + (f"  {key_for_title(key)}" if key else "")
+def title_draws(cfg: dict, lines: list, ink: str, scale: float = 1.0) -> list[str]:
+    """gm arguments for the doubled title block (gravity NorthEast, right edge at right_x).
+    Second copy: double_offset px right and down, same ink unless double_color is set."""
+    t = cfg["title"]
+    dx, dy = t["double_offset"]
+    right = (FRAME_W - t["right_x"]) * scale
+    args = ["-gravity", "NorthEast", "-font", cfg["font"]]
+    for copy, (ox, oy, color) in enumerate(((0, 0, ink), (dx, dy, t["double_color"] or ink))):
+        args += ["-fill", color]
+        for text, size, top in lines:
+            base = (top + t["ascent"] * size + oy) * scale   # gm draws at the baseline
+            args += ["-pointsize", f"{size * scale:g}",
+                     "-draw", f"text {right - ox * scale:g},{base:g} '{gm_text(text)}'"]
+    return args
+
+
+def make_text_png(cfg: dict, out: Path, job: ClipJob) -> None:
+    """The four-line block, printed twice, as one transparent 1080x1920 PNG (ffmpeg path)."""
+    lines = title_lines(cfg, job.title, job.bpm, job.key)
     run([cfg["gm"], "convert", "-size", f"{FRAME_W}x{FRAME_H}", "xc:none",
-         "-fill", "white", "-font", cfg["font"],
-         "-pointsize", "560", "-draw", f"text 15,{HERO_BASELINE} '{gm_text(bpm)}'",
-         "-pointsize", "72", "-draw", f"text 62,{KEY_BASELINE} '{gm_text(key_line)}'",
-         "-fill", MUTED, "-font", cfg["small_font"],
-         "-pointsize", "34", "-draw", f"text 62,{NAME_BASELINE} '{gm_text(cfg['producer'])}'",
-         str(out)])
+         *title_draws(cfg, lines, job.palette["ink"]), str(out)])
 
 
 def render_ffmpeg(cfg: dict, job: ClipJob) -> None:
@@ -610,20 +681,24 @@ def render_ffmpeg(cfg: dict, job: ClipJob) -> None:
         audio_label, audio_in = "2:a", ["-i", str(job.audio)]
     else:
         audio_label, audio_in = "0:a", ["-i", str(job.footage)]
+    box = scope_box(cfg, job.palette["line"])
     strip_input = None
     if job.viz == "strip":
         strip_png = job.text_png.with_name(f"{job.slug}-strip.png")
         cmd = [cfg["ffmpeg"], "-v", "error", "-y", *audio_in]
         if job.duration:
             cmd += ["-t", f"{job.duration:.3f}"]
-        run(cmd + ["-filter_complex", f"[0:a]showwavespic=s={WAVE_W}x{WAVE_H}:colors=white:"
+        _, _, bw, bh, vert = box
+        length, amp = (bh, bw) if vert else (bw, bh)
+        run(cmd + ["-filter_complex", f"[0:a]showwavespic=s={length}x{amp}:colors=white:"
                    "split_channels=0", "-frames:v", "1", str(strip_png)])
         strip_input = 3 if job.audio else 2
         inputs += [*loop_img, str(strip_png)]
     measured = measure_loudness(cfg, audio_in, job.duration)
     graph = clip_filtergraph(src_w=src_w, src_h=src_h, audio=audio_label,
                              loudnorm=loudnorm_filter(cfg["loudness_lufs"], measured),
-                             viz=job.viz, strip_input=strip_input)
+                             palette=job.palette, box=box, bound=bound, viz=job.viz,
+                             strip_input=strip_input)
     cmd = [cfg["ffmpeg"], "-v", "error", "-y", *inputs, "-filter_complex", graph,
            "-map", "[v]", "-map", "[aud]"]
     if job.duration:
@@ -666,29 +741,59 @@ def fill_template(lines: list[str], values: dict, flags: set[str]) -> list[dict]
         when = cmd.pop("when", None)
         if when and when not in flags:
             continue
+        cmd.pop("note", None)
         out.append(sub(cmd))
     return out
 
 
+def capture_index(cmds: list[dict], name: str) -> int:
+    """Step index of the command tagged "capture": name (its result carries a layer id)."""
+    for i, c in enumerate(cmds):
+        if c.get("capture") == name:
+            return i
+    raise KeyError(f"no step captures {name!r}")
+
+
+def hex_rgba(hex_color: str) -> list[float]:
+    h = hex_color.lstrip("#")
+    return [round(int(h[i:i + 2], 16) / 255.0, 4) for i in (0, 2, 4)] + [1]
+
+
 def effectcraft_values(cfg: dict, job: ClipJob, src_w: int, src_h: int, duration: float) -> dict:
-    v = cfg["viz_effectcraft"]
+    pal, t, sc = job.palette, cfg["title"], cfg["scope"]
+    edge = pal["line"] if pal["line"] in ("left", "bottom") else "bottom"
+    v = cfg["viz_effectcraft"][edge]
     fg_scale = FRAME_W / src_w * 100.0
-    bg_scale = max(FRAME_W / src_w, FRAME_H / src_h) * 100.0
     vis_h = min(src_h, FOOT_BAND_H / (fg_scale / 100.0))      # source px kept by the mask
     mask = [0, round((src_h - vis_h) / 2.0, 2), src_w, round(vis_h, 2)]
+    if edge == "left":
+        start, end = [sc["left_x"], sc["left_y"][0]], [sc["left_x"], sc["left_y"][1]]
+    else:
+        start, end = [sc["bottom_x"][0], sc["bottom_y"]], [sc["bottom_x"][1], sc["bottom_y"]]
     audio = job.audio or job.footage
-    return {
-        "DURATION": round(duration, 3),
+    vals = {
+        "DURATION": round(duration, 3), "CANVAS": pal["bg"], "INK": pal["ink"],
+        "INK2": t["double_color"] or pal["ink"], "INK_RGBA": hex_rgba(pal["ink"]),
+        "FONT": cfg["font_family"],
         "IMPORTS": sorted({str(job.footage), str(audio)}),
         "FOOTAGE_ITEM": job.footage.name, "AUDIO_ITEM": audio.name,
-        "BPM": job.bpm, "KEY_LINE": "BPM" + (f"  {key_for_title(job.key)}" if job.key else ""),
-        "PRODUCER": cfg["producer"], "NAME_FONT": cfg.get("effectcraft_name_font", "Arial"),
-        "BG_SCALE": round(bg_scale, 3), "FG_SCALE": round(fg_scale, 3), "FG_MASK": mask,
-        "SCOPE_Y": v["scope_y"], "MAX_HEIGHT": v["maximum_height"],
-        "AUDIO_DURATION_MS": v["audio_duration_ms"], "DISPLAYED_SAMPLES": v["displayed_samples"],
-        "THICKNESS": v["thickness"], "SOFTNESS": v["softness"],
-        "DISPLAY_OPTIONS": v["display_options"], "DARKEN_OPACITY": v["darken_opacity"],
+        "FG_SCALE": round(fg_scale, 3), "FG_MASK": mask,
+        "FG_POS": [FRAME_W / 2, FOOT_BAND_Y + FOOT_BAND_H / 2, 0],
+        "SCOPE_START": start, "SCOPE_END": end,
+        "MAX_HEIGHT": v["maximum_height"], "AUDIO_DURATION_MS": v["audio_duration_ms"],
+        "DISPLAYED_SAMPLES": v["displayed_samples"], "THICKNESS": v["thickness"],
+        "SOFTNESS": v["softness"], "DISPLAY_OPTIONS": v["display_options"],
     }
+    # Text layers are positioned at the baseline (right-justified at right_x).
+    lines = title_lines(cfg, job.title, job.bpm, job.key)
+    dx, dy = t["double_offset"]
+    for i in range(4):
+        text, size, top = lines[i] if i < len(lines) else ("", t["line_size"], 0)
+        base = round(top + t["ascent"] * size, 1)
+        vals[f"L{i + 1}"], vals[f"S{i + 1}"] = text, size
+        vals[f"P{i + 1}"] = [t["right_x"], base]
+        vals[f"Q{i + 1}"] = [t["right_x"] + dx, base + dy]
+    return vals
 
 
 def render_effectcraft(cfg: dict, job: ClipJob) -> None:
@@ -708,28 +813,28 @@ def render_effectcraft(cfg: dict, job: ClipJob) -> None:
         src_w, src_h = info["width"] or 1920, info["height"] or 1080
         # A recording is never cut: the comp is as long as the recording.
         duration = min(job.duration, info["duration"]) if job.duration else info["duration"]
-    flags = set() if job.audio else {"audio_is_footage"}
+    flags = {"audio_is_footage"} if job.audio is None else set()
+    if job.key:
+        flags.add("has_key")
     template = REPO / cfg.get("effectcraft_template", "templates/osc-9x16.jsonl")
     cmds = fill_template(template.read_text().splitlines(),
                          effectcraft_values(cfg, job, src_w, src_h, duration), flags)
+    audio_step = capture_index(cmds, "audio")
     work = job.text_png.parent
     steps, proj = work / f"{job.slug}.ec.jsonl", work / f"{job.slug}.ecproj"
     raw = job.out.with_name(job.out.stem + ".ec-raw.mp4")
     if not DRY_RUN:
-        steps.write_text("".join(json.dumps(c) + "\n" for c in cmds))
-    env = {**os.environ, "EFFECTCRAFT_FONT_DIRS": str(REPO / "assets" / "fonts")}
-    run_env(env, [ec, "run", "--commands", str(steps), "--empty", "--save-as", str(proj)])
-    # Layer-reference parameters take the layer's numeric id ("#5" silently stays null).
-    if DRY_RUN:
-        audio_id = 0
-    else:
-        info_json = json.loads(run_env(env, [ec, "info", str(proj), "--json"]).stdout)
-        layers = info_json["activeComp"]["layers"]
-        audio_id = next(l["id"] for l in layers if l["index"] == 5)
-    run_env(env, [ec, "set", "Main", "#4", "effects/#1/audioLayer", str(audio_id), str(proj),
+        steps.write_text("".join(json.dumps({k: v for k, v in c.items() if k != "capture"})
+                                 + "\n" for c in cmds))
+    env = {**os.environ, "EFFECTCRAFT_FONT_DIRS": str(Path(cfg["font"]).parent)}
+    res = run_env(env, [ec, "run", "--commands", str(steps), "--empty", "--save-as", str(proj),
+                        "--json"])
+    # Layer-reference parameters take the layer's numeric id ("#n" silently stays null).
+    audio_id = 0 if DRY_RUN else json.loads(res.stdout)["result"][audio_step]["result"]["layer"]
+    run_env(env, [ec, "set", "Main", "Scope", "effects/#1/audioLayer", str(audio_id), str(proj),
                   "--save"])
     if not DRY_RUN:
-        got = json.loads(run_env(env, [ec, "get", "Main", "#4", "effects/#1/audioLayer",
+        got = json.loads(run_env(env, [ec, "get", "Main", "Scope", "effects/#1/audioLayer",
                                        str(proj), "--json"]).stdout)
         if got.get("value") != audio_id:
             raise RuntimeError(f"audioLayer did not take id {audio_id}: {got}")
@@ -798,7 +903,8 @@ def cmd_clips(cfg: dict, args) -> int:
         missing = set(args.slugs) - {r["slug"] for r in rows}
         for m in sorted(missing):
             print(f"skip {m}: not on the belt (run `loops` first)", file=sys.stderr)
-    renderer = RENDERERS[args.renderer or cfg["renderer"]]
+    renderer_name = args.renderer or cfg["renderer"]
+    renderer = RENDERERS[renderer_name]
     if not DRY_RUN:
         for k in ("clips", "work", "inbox"):
             P[k].mkdir(parents=True, exist_ok=True)
@@ -836,20 +942,23 @@ def cmd_clips(cfg: dict, args) -> int:
             print(f"wait {slug}: no recording at {P['inbox'] / (slug + '.mov')} "
                   "(or pass --still image.png)")
             continue
+        pal = pick_palette(cfg, belt, r, args.palette)
+        job.title = r.get("title") or clean_title(r["name"], r["bpm"])
+        job.palette, job.viz = pal, args.viz
         try:
-            make_text_png(cfg, text_png, r["bpm"], r["key"])
-            job.viz = args.viz
+            if renderer_name == "ffmpeg":
+                make_text_png(cfg, text_png, job)
             renderer(cfg, job)
         except (RuntimeError, NotImplementedError) as e:
             print(f"fail {slug}: {e}", file=sys.stderr)
             failures += 1
             continue
-        r.update(clip=str(out), clip_kind=f"{kind}:{args.renderer or cfg['renderer']}",
-                 updated=now())
+        r.update(clip=str(out), clip_kind=f"{kind}:{renderer_name}", palette=pal["name"],
+                 title=job.title, updated=now())
         if r["status"] == "loop":
             r["status"] = "clip"
         write_csv(P["belt"], BELT_COLUMNS, belt)
-        print(f"clip  {slug} [{kind}] -> {out}")
+        print(f"clip  {slug} [{kind}, {renderer_name}, {pal['name']}] -> {out}")
     return 1 if failures else 0
 
 
@@ -919,23 +1028,24 @@ def cmd_posted(cfg: dict, args) -> int:
 # ---------------------------------------------------------------- cover
 
 def cmd_cover(cfg: dict, args) -> int:
+    """3000x3000 + 1080x1080: flat palette canvas (or a background image), the doubled
+    title block top right, optional full-frame logo overlay."""
     out = Path(os.path.expanduser(args.out)) if args.out else paths(cfg)["root"] / "covers"
     if not DRY_RUN:
         out.mkdir(parents=True, exist_ok=True)
     name = slugify(args.title) or "cover"
     big, small = out / f"{name}-3000.png", out / f"{name}-1080.png"
+    pal = next((p for p in cfg["palette"] if p["name"] == args.palette), cfg["palette"][0])
+    ink = args.ink or pal["ink"]
     if args.bg:
         base = [cfg["gm"], "convert", os.path.expanduser(args.bg), "-resize", "3000x3000^",
                 "-gravity", "center", "-extent", "3000x3000"]
     else:
-        base = [cfg["gm"], "convert", "-size", "3000x3000", f"xc:{args.color}"]
-    text = gm_text(args.title.upper())
-    pt = min(420, int(2.2639 * 3000 / (len(text) + 5)))   # fit rule from makeCover.js
-    name_text = [] if args.logo else [
-        "-gravity", "south", "-fill", MUTED, "-font", cfg["small_font"],
-        "-pointsize", "90", "-draw", f"text 0,180 '{gm_text(cfg['producer'])}'"]
-    run(base + ["-gravity", "center", "-fill", "white", "-font", cfg["font"],
-                "-pointsize", str(pt), "-draw", f"text 0,0 '{text}'", *name_text, str(big)])
+        base = [cfg["gm"], "convert", "-size", "3000x3000", f"xc:{args.color or pal['bg']}"]
+    lines = title_lines(cfg, args.title.upper(), args.bpm or "", args.key or "")
+    if not args.bpm:
+        lines = [l for l in lines if not l[0].endswith(" bpm")]
+    run(base + [*title_draws(cfg, lines, ink, scale=3000 / FRAME_W), str(big)])
     if args.logo:
         logo = paths(cfg)["work"] / "cover-logo.png"
         if not DRY_RUN:
@@ -1001,6 +1111,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="if a recording has no audio track, use the loop WAV under it")
     s.add_argument("--renderer", choices=sorted(RENDERERS),
                    help="effectcraft (default from config) or ffmpeg (fallback)")
+    s.add_argument("--palette", help="force one palette entry by name (default: rotate)")
     s.add_argument("--viz", choices=VIZ_KINDS, default="osc",
                    help="visualizer: osc (oscilloscope, default), bars (spectrum), strip (static)")
     s.add_argument("--force", action="store_true", help="re-render clips that exist")
@@ -1014,7 +1125,11 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("cover", help="3000x3000 and 1080x1080 cover PNGs")
     s.add_argument("title")
     s.add_argument("--bg", help="background image (default: flat --color)")
-    s.add_argument("--color", default="#16161a")
+    s.add_argument("--palette", default="black", help="palette entry name for canvas and ink")
+    s.add_argument("--color", help="canvas colour (overrides --palette)")
+    s.add_argument("--ink", help="text colour (overrides --palette)")
+    s.add_argument("--bpm")
+    s.add_argument("--key")
     s.add_argument("--logo", help="transparent PNG overlaid full-frame (e.g. assets/logo.png)")
     s.add_argument("--logo-corner", action="store_true", help="place --logo small, bottom right")
     s.add_argument("--out", help="output folder (default <root>/covers)")

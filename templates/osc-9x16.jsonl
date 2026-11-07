@@ -1,30 +1,29 @@
-{"command":"comp.new","params":{"name":"Main","width":1080,"height":1920,"frameRate":30,"duration":"{{DURATION}}","background":"#0B0B0D"}}
-{"command":"file.import","params":{"paths":"{{IMPORTS}}"}}
-{"command":"layer.addItem","params":{"item":"{{FOOTAGE_ITEM}}"}}
-{"command":"layer.newSolid","params":{"name":"Darken","color":"#000000"}}
-{"command":"layer.addItem","params":{"item":"{{FOOTAGE_ITEM}}"}}
-{"command":"layer.addItem","params":{"item":"{{AUDIO_ITEM}}"}}
-{"command":"layer.newSolid","params":{"name":"Scope","color":"#000000"}}
-{"command":"layer.newText","params":{"text":"{{BPM}}","name":"BPM","position":[60,640],"justify":"left","font":"Bebas Neue","size":520,"fill":"#ffffff"}}
-{"command":"layer.newText","params":{"text":"{{KEY_LINE}}","name":"Key","position":[64,735],"justify":"left","font":"Bebas Neue","size":72,"fill":"#ffffff"}}
-{"command":"layer.newText","params":{"text":"{{PRODUCER}}","name":"Name","position":[64,1520],"justify":"left","font":"{{NAME_FONT}}","size":34,"fill":"#A8A8AD"}}
-{"command":"prop.set","params":{"layer":"#8","path":"transform/scale","value":["{{BG_SCALE}}","{{BG_SCALE}}",100]}}
-{"command":"effect.apply","params":{"effect":"Gaussian Blur","layers":["#8"]}}
-{"command":"prop.set","params":{"layer":"#8","path":"effects/#1/blurriness","value":60}}
-{"command":"prop.set","params":{"layer":"#7","path":"transform/opacity","value":"{{DARKEN_OPACITY}}"}}
-{"command":"prop.set","params":{"layer":"#6","path":"transform/scale","value":["{{FG_SCALE}}","{{FG_SCALE}}",100]}}
-{"command":"layer.addMask","params":{"layer":"#6","shape":"rect","rect":"{{FG_MASK}}"}}
-{"command":"prop.set","params":{"layer":"#6","path":"transform/position","value":[540,1090,0]}}
-{"command":"layer.setSwitch","params":{"layers":["#6","#8"],"switch":"audio","value":false}}
-{"when":"audio_is_footage","command":"layer.setSwitch","params":{"layers":["#5"],"switch":"video","value":false}}
-{"command":"effect.apply","params":{"effect":"Audio Waveform","layers":["#4"]}}
-{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/startPoint","value":[60,"{{SCOPE_Y}}"]}}
-{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/endPoint","value":[960,"{{SCOPE_Y}}"]}}
-{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/maximumHeight","value":"{{MAX_HEIGHT}}"}}
-{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/audioDuration","value":"{{AUDIO_DURATION_MS}}"}}
-{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/displayedSamples","value":"{{DISPLAYED_SAMPLES}}"}}
-{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/thickness","value":"{{THICKNESS}}"}}
-{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/softness","value":"{{SOFTNESS}}"}}
-{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/outsideColor","value":[1,1,1,1]}}
-{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/insideColor","value":[1,1,1,1]}}
-{"command":"prop.set","params":{"layer":"#4","path":"effects/#1/displayOptions","value":"{{DISPLAY_OPTIONS}}"}}
+{"note": "flat canvas from the palette; no blur, no darkened copy", "command": "comp.new", "params": {"name": "Main", "width": 1080, "height": 1920, "frameRate": 30, "duration": "{{DURATION}}", "background": "{{CANVAS}}"}}
+{"command": "file.import", "params": {"paths": "{{IMPORTS}}"}}
+{"note": "footage panel: full width, middle band y 760-1300", "command": "layer.addItem", "params": {"item": "{{FOOTAGE_ITEM}}"}}
+{"command": "prop.set", "params": {"layer": "#1", "path": "transform/scale", "value": ["{{FG_SCALE}}", "{{FG_SCALE}}", 100]}}
+{"command": "layer.addMask", "params": {"layer": "#1", "shape": "rect", "rect": "{{FG_MASK}}"}}
+{"command": "prop.set", "params": {"layer": "#1", "path": "transform/position", "value": "{{FG_POS}}"}}
+{"note": "the picture layer never plays; the audio layer below does", "command": "layer.setSwitch", "params": {"layers": ["#1"], "switch": "audio", "value": false}}
+{"capture": "audio", "note": "the recording itself when it carries audio, else the loop wav", "command": "layer.addItem", "params": {"item": "{{AUDIO_ITEM}}"}}
+{"when": "audio_is_footage", "command": "layer.setSwitch", "params": {"layers": ["#1"], "switch": "video", "value": false}}
+{"command": "layer.newSolid", "params": {"name": "Scope", "color": "#000000"}}
+{"command": "layer.newText", "params": {"text": "{{L1}}", "name": "TitleB", "position": "{{Q1}}", "justify": "right", "font": "{{FONT}}", "size": "{{S1}}", "fill": "{{INK2}}"}}
+{"command": "layer.newText", "params": {"text": "{{L2}}", "name": "ProdB", "position": "{{Q2}}", "justify": "right", "font": "{{FONT}}", "size": "{{S2}}", "fill": "{{INK2}}"}}
+{"command": "layer.newText", "params": {"text": "{{L3}}", "name": "BpmB", "position": "{{Q3}}", "justify": "right", "font": "{{FONT}}", "size": "{{S3}}", "fill": "{{INK2}}"}}
+{"when": "has_key", "command": "layer.newText", "params": {"text": "{{L4}}", "name": "KeyB", "position": "{{Q4}}", "justify": "right", "font": "{{FONT}}", "size": "{{S4}}", "fill": "{{INK2}}"}}
+{"command": "layer.newText", "params": {"text": "{{L1}}", "name": "TitleA", "position": "{{P1}}", "justify": "right", "font": "{{FONT}}", "size": "{{S1}}", "fill": "{{INK}}"}}
+{"command": "layer.newText", "params": {"text": "{{L2}}", "name": "ProdA", "position": "{{P2}}", "justify": "right", "font": "{{FONT}}", "size": "{{S2}}", "fill": "{{INK}}"}}
+{"command": "layer.newText", "params": {"text": "{{L3}}", "name": "BpmA", "position": "{{P3}}", "justify": "right", "font": "{{FONT}}", "size": "{{S3}}", "fill": "{{INK}}"}}
+{"when": "has_key", "command": "layer.newText", "params": {"text": "{{L4}}", "name": "KeyA", "position": "{{P4}}", "justify": "right", "font": "{{FONT}}", "size": "{{S4}}", "fill": "{{INK}}"}}
+{"note": "1 px oscilloscope; audioLayer is set by numeric id after the build", "command": "effect.apply", "params": {"effect": "Audio Waveform", "layers": ["Scope"]}}
+{"command": "prop.set", "params": {"layer": "Scope", "path": "effects/#1/startPoint", "value": "{{SCOPE_START}}"}}
+{"command": "prop.set", "params": {"layer": "Scope", "path": "effects/#1/endPoint", "value": "{{SCOPE_END}}"}}
+{"command": "prop.set", "params": {"layer": "Scope", "path": "effects/#1/maximumHeight", "value": "{{MAX_HEIGHT}}"}}
+{"command": "prop.set", "params": {"layer": "Scope", "path": "effects/#1/audioDuration", "value": "{{AUDIO_DURATION_MS}}"}}
+{"command": "prop.set", "params": {"layer": "Scope", "path": "effects/#1/displayedSamples", "value": "{{DISPLAYED_SAMPLES}}"}}
+{"command": "prop.set", "params": {"layer": "Scope", "path": "effects/#1/thickness", "value": "{{THICKNESS}}"}}
+{"command": "prop.set", "params": {"layer": "Scope", "path": "effects/#1/softness", "value": "{{SOFTNESS}}"}}
+{"command": "prop.set", "params": {"layer": "Scope", "path": "effects/#1/insideColor", "value": "{{INK_RGBA}}"}}
+{"command": "prop.set", "params": {"layer": "Scope", "path": "effects/#1/outsideColor", "value": "{{INK_RGBA}}"}}
+{"command": "prop.set", "params": {"layer": "Scope", "path": "effects/#1/displayOptions", "value": "{{DISPLAY_OPTIONS}}"}}
