@@ -264,3 +264,128 @@ class Palette2021(unittest.TestCase):
         p = bp.palette_2021("ssg-126")
         again = bp.pick_palette({"palette": [], "palette_mode": "random2021"}, [], {"palette": p["name"], "slug": "ssg-126"})
         self.assertEqual(again, p)
+
+
+class LoopFilter(unittest.TestCase):
+    def test_limiter_oversampled_before_cut_and_fades(self):
+        af = bp.loop_filter(19.2, 12.8, rate=44100, ceiling_db=-1.3)
+        parts = af.split(",")
+        self.assertEqual(parts[0], "aresample=176400")
+        self.assertEqual(parts[1], f"alimiter=limit={10 ** (-1.3 / 20):.6f}:level=0:latency=1")
+        self.assertEqual(parts[2], "aresample=44100")
+        self.assertEqual(parts[3], "atrim=start=19.200000:duration=12.800000")
+        self.assertEqual(parts[-2:], ["afade=t=in:d=0.005", "afade=t=out:st=12.795000:d=0.005"])
+
+    def test_limiter_off_and_gain(self):
+        af = bp.loop_filter(0, 10, rate=48000, ceiling_db=None)
+        self.assertNotIn("alimiter", af)
+        self.assertTrue(af.startswith("atrim=start=0.000000"))
+        af = bp.loop_filter(0, 10, rate=48000, ceiling_db=-1.0, gain_db=-3.5)
+        self.assertTrue(af.startswith("volume=-3.50dB,aresample=192000,alimiter="))
+
+    def test_limit_clamped_to_alimiter_range(self):
+        self.assertIn("limit=0.062500", bp.loop_filter(0, 1, rate=44100, ceiling_db=-40))
+        self.assertIn("limit=1.000000", bp.loop_filter(0, 1, rate=44100, ceiling_db=3))
+
+    def test_defaults(self):
+        self.assertEqual(bp.DEFAULTS["loop_true_peak_dbtp"], -1.0)
+        self.assertIsNone(bp.DEFAULTS["loop_target_lufs"])
+
+    def test_parse_ebur128(self):
+        err = ("[Parsed_ebur128_0 @ 0x1] Summary:\n\n  Integrated loudness:\n    I:         -10.0 LUFS\n"
+               "    Threshold: -20.1 LUFS\n\n  True peak:\n    Peak:       -1.3 dBFS\n")
+        self.assertEqual(bp.parse_ebur128(err), {"lufs": -10.0, "true_peak": -1.3})
+        self.assertEqual(bp.parse_ebur128("Peak: -inf dBFS")["true_peak"], float("-inf"))
+
+
+class Hold(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.cfg = cfg()
+        self.cfg.update(root=self.root, captions=str(self.root / "none.txt"))
+        clip = self.root / "a.mp4"
+        clip.write_bytes(b"x")
+        self.clip = str(clip)
+
+        def r(slug, status, **kw):
+            d = {c: "" for c in bp.BELT_COLUMNS}
+            d.update(slug=slug, name=slug, bpm="140", status=status, **kw)
+            return d
+        bp.write_csv(self.root / "belt.csv", bp.BELT_COLUMNS, [
+            r("keep", "clip", clip=self.clip), r("void", "packed", clip=self.clip),
+            r("raw", "loop")])
+        bp.write_csv(self.root / "queue.csv", bp.QUEUE_COLUMNS, [
+            {"date": "2026-11-07", "slug": "void", "clip": self.clip, "caption": "c",
+             "status": "queued", "posted_at": ""}])
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def belt(self):
+        return {r["slug"]: r for r in bp.read_csv(self.root / "belt.csv", bp.BELT_COLUMNS)}
+
+    def ns(self, **kw):
+        import argparse
+        return argparse.Namespace(**kw)
+
+    def test_hold_sets_reason_and_drops_queued_row(self):
+        bp.cmd_hold(self.cfg, self.ns(slug="void", reason=["vocal", "cut"]))
+        b = self.belt()["void"]
+        self.assertEqual((b["status"], b["hold_reason"], b["held_from"]), ("hold", "vocal cut", "packed"))
+        self.assertEqual(bp.read_csv(self.root / "queue.csv", bp.QUEUE_COLUMNS), [])
+        # holding again only changes the reason; held_from survives
+        bp.cmd_hold(self.cfg, self.ns(slug="void", reason=["silence"]))
+        b = self.belt()["void"]
+        self.assertEqual((b["hold_reason"], b["held_from"]), ("silence", "packed"))
+
+    def test_unhold_restores(self):
+        bp.cmd_hold(self.cfg, self.ns(slug="void", reason=[]))
+        bp.cmd_unhold(self.cfg, self.ns(slug="void"))
+        b = self.belt()["void"]
+        self.assertEqual((b["status"], b["hold_reason"], b["held_from"]), ("packed", "", ""))
+        bp.cmd_hold(self.cfg, self.ns(slug="raw", reason=["x"]))
+        bp.cmd_unhold(self.cfg, self.ns(slug="raw"))
+        self.assertEqual(self.belt()["raw"]["status"], "loop")
+
+    def test_pack_and_clips_skip_held(self):
+        bp.cmd_hold(self.cfg, self.ns(slug="void", reason=["rights"]))
+        bp.cmd_hold(self.cfg, self.ns(slug="raw", reason=["rights"]))
+        bp.cmd_pack(self.cfg, self.ns(captions=None, caption=None))
+        b = self.belt()
+        self.assertEqual(b["void"]["status"], "hold")
+        self.assertEqual(b["keep"]["status"], "packed")
+        q = bp.read_csv(self.root / "queue.csv", bp.QUEUE_COLUMNS)
+        self.assertEqual([x["slug"] for x in q], ["keep"])
+        import zipfile
+        z = next((self.root / "packs").glob("*.zip"))
+        self.assertFalse(any("/void/" in n for n in zipfile.ZipFile(z).namelist()))
+        # clips --force over everything: the held rows are never handed to a renderer
+        called = []
+        old = dict(bp.RENDERERS)
+        bp.RENDERERS["ffmpeg"] = lambda c, job: called.append(job.slug)
+        try:
+            bp.cmd_clips(self.cfg, self.ns(slugs=[], renderer="ffmpeg", force=True, still=None,
+                                            audio_from_loop=False, palette=None, viz="osc"))
+            bp.cmd_clips(self.cfg, self.ns(slugs=["raw"], renderer="ffmpeg", force=True,
+                                            still="/x.png", audio_from_loop=False, palette=None,
+                                            viz="osc"))
+        finally:
+            bp.RENDERERS.clear(); bp.RENDERERS.update(old)
+        self.assertEqual(called, [])
+
+    def test_job_slugs_and_action_skip_held(self):
+        bp.cmd_hold(self.cfg, self.ns(slug="raw", reason=["x"]))
+        belt = list(self.belt().values())
+        self.assertEqual(bp.job_slugs({"cmd": "clips", "args": ["--force"]}, belt), {"keep", "void"})
+        self.assertEqual(bp.job_slugs({"cmd": "clips", "args": ["raw"]}, belt), set())
+        self.assertIsNone(bp.next_action(self.belt()["raw"], True, False))
+
+    def test_status_prints_reason(self):
+        import io, contextlib
+        bp.cmd_hold(self.cfg, self.ns(slug="raw", reason=["unfinished"]))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            bp.cmd_status(self.cfg, self.ns())
+        self.assertIn("hold 1", out.getvalue())
+        self.assertRegex(out.getvalue(), r"hold +raw .*\(unfinished\)")

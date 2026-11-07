@@ -51,9 +51,11 @@ Routes, for scripting: `GET /api/state`, `GET /api/log?since=N`, `POST /api/run`
 
 | Command | Example | What it does |
 |---|---|---|
-| `loops` | `loops --ids 1471 1501 --bars 8` | Cuts a loop at the set's tempo from its primary preview: the loudest `bars` window on a 4-bar grid, or `--at-bar 17` or `--at 32.5`. `--audio stem.wav` swaps in another source (one set), e.g. a stemdrop melody stem. `--list NAME` reads a catalog list. Sets already on the belt are skipped unless you pass `--force`. |
+| `loops` | `loops --ids 1471 1501 --bars 8` | Cuts a loop at the set's tempo from its primary preview: the loudest `bars` window on a 4-bar grid, or `--at-bar 17` or `--at 32.5`. `--audio stem.wav` swaps in another source (one set), e.g. a stemdrop melody stem. `--list NAME` reads a catalog list. Sets already on the belt are skipped unless you pass `--force`, which re-cuts the same window from the same source (and keeps the title and a hold); add `--at-bar`/`--at`/`--audio` to move it. Every loop goes through a true-peak limiter (see below). |
 | `clips` | `clips regal --palette coral` | Renders 1080x1920, 30 fps, H.264 yuv420p, AAC 48 kHz. `--still shot.png` is the fallback for loops with no recording: it is marked `still-fallback` in belt.csv, and the loop WAV is used for 8 bars. `--renderer effectcraft\|ffmpeg`, `--viz osc\|bars\|strip` (ffmpeg only; osc is the default and the only one in the EffectCraft template), `--force` re-renders. |
 | `pack` | `pack` | Zips loops with status clip or later, sets them to `packed`, and refreshes queue.csv. |
+| `hold` | `hold yours credits a collaborator` | Takes a loop off the belt for now, with the reason. `clips` and `pack` skip it (it is left out of the zip), a queued (not posted) queue row for it is dropped, and `status` and the app show it dimmed with the reason. |
+| `unhold` | `unhold yours` | Puts a held loop back at the status it had (back to `loop` if its clip is gone). |
 | `posted` | `posted regal` | Marks the queue row posted with today's date (`--date` to override) and sets the belt row to `posted`. |
 | `cover` | `cover "regal" --palette coral --bpm 180 --key "A minor"` | Writes 3000x3000 and 1080x1080 PNGs to `covers/`: a flat canvas (`palette_default`, near-black like the clips, unless `--palette`, `--color` or `--bg image`), the same single title block 60 px from the top and right, and an optional `--logo assets/logo.png` (full-frame overlay; `--logo-corner` puts a small mark bottom right). |
 | `status` | `status` | Counts by status, every belt row, every queue row, and the next post. |
@@ -62,6 +64,13 @@ Routes, for scripting: `GET /api/state`, `GET /api/log?since=N`, `POST /api/run`
 Global flags: `--config path.json` and `--dry-run`, which prints every ffmpeg, gm and EffectCraft command and writes nothing. They go **before** the subcommand (`python3 beatpack.py --dry-run clips regal`); after it, argparse rejects them.
 
 Exit codes: a missing recording (with no `--still`) or an unknown slug prints a `wait`/`skip` line and exits 0, so check the output rather than the exit status. A render failure, a recording with no audio, a bad `--config` and `posted` on a slug that is not in `queue.csv` exit 1. `posted` only works after `pack` has queued the clip.
+
+## Loop levels
+
+The previews are often mastered hot (sample peaks at full scale). `loops` runs `alimiter` over the source at 4x the sample rate, with its lookahead delay compensated so the cut does not move, then trims and applies the 5 ms fades. It then measures the true peak of the WAV and the MP3 (`ebur128=peak=true`) and, if either is over the ceiling, tightens the limiter by the overshoot and cuts again (up to 4 tries).
+
+- `loop_true_peak_dbtp` (default `-1.0`): the ceiling for both files. The first try limits 0.3 dB under it because the MP3 encode adds a little. `null` turns the limiter off.
+- `loop_target_lufs` (default `null`, off): gain the cut toward this integrated loudness before the limiter (for example `-12`).
 
 ## The clip (the 2021 look)
 
@@ -116,7 +125,8 @@ The catalog is opened read-only at `~/Library/Application Support/ableton-librar
 - `bars`, `start_s`, `duration_s` (the cut)
 - `source` (preview path), `wav`, `mp3`, `clip`
 - `clip_kind`: `recording`, `recording+loop-audio` or `still-fallback`, plus `:renderer`
-- `palette`, `status` (`loop` → `clip` → `packed` → `posted`), `updated`
+- `palette`, `status` (`loop` → `clip` → `packed` → `posted`, or `hold`), `updated`
+- `hold_reason`, `held_from` (the status before `hold`, for `unhold`)
 
 **queue.csv:** `date` (planned post day), `slug`, `clip`, `caption` (e.g. "180 BPM, A minor. Free loop in bio."), `status` (`queued` or `posted`), `posted_at`.
 

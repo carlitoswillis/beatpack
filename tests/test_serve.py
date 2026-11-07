@@ -147,3 +147,20 @@ class WorkerLog(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HeldRows(unittest.TestCase):
+    def test_held_row_state_reason_and_order(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            cfg = json.loads(json.dumps(bp.DEFAULTS))
+            cfg.update(root=root, db=root / "missing.db")
+            bp.write_csv(root / "belt.csv", bp.BELT_COLUMNS, [
+                row("yours", "hold", hold_reason="credits a collaborator", held_from="loop"),
+                row("night", "loop"), row("bleed", "posted")])
+            s = bp.build_state(cfg, today=dt.date(2026, 11, 6))
+            self.assertEqual([r["slug"] for r in s["rows"]], ["night", "yours", "bleed"])
+            y = s["rows"][1]
+            self.assertEqual((y["state"], y["hold_reason"], y["action"], y["station"]),
+                             ("held", "credits a collaborator", None, 0))
+            self.assertIn("1 on hold", s["status_line"])

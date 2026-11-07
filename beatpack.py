@@ -44,6 +44,11 @@ DEFAULTS = {
     "gm": "gm",
     "bars": 8,
     "loudness_lufs": -14,
+    # Loops: ceiling for both the WAV and the MP3, as true peak (limited at 4x oversampling,
+    # then measured). None turns the limiter off. loop_target_lufs (None = off) gains the
+    # cut toward that integrated loudness before the limiter.
+    "loop_true_peak_dbtp": -1.0,
+    "loop_target_lufs": None,
     "audio_codec": "aac_at",
     "audio_bitrate": "256k",
     "renderer": "effectcraft",
@@ -95,9 +100,10 @@ DEFAULTS = {
 
 BELT_COLUMNS = ["slug", "set_id", "name", "title", "bpm", "key", "bars", "start_s",
                 "duration_s", "source", "wav", "mp3", "clip", "clip_kind", "palette",
-                "status", "updated"]
+                "status", "updated", "hold_reason", "held_from"]
 QUEUE_COLUMNS = ["date", "slug", "clip", "caption", "status", "posted_at"]
 STATUS_ORDER = ["loop", "clip", "packed", "posted"]
+HOLD = "hold"   # off the belt for now (rights, quality): clips and pack skip it
 
 # Frame grid for the 1080x1920 clip: the 2021 barlitxs look (research/16). Flat canvas,
 # footage as a full-width panel in the middle band, title block top right, 1 px scope.
@@ -518,14 +524,16 @@ def q(s: str) -> str:
 
 def probe(cfg: dict, path: Path) -> dict:
     res = subprocess.run([cfg["ffprobe"], "-v", "error", "-show_entries",
-                          "format=duration:stream=codec_type,width,height,codec_name",
+                          "format=duration:stream=codec_type,width,height,codec_name,sample_rate",
                           "-of", "json", str(path)], capture_output=True)
     if res.returncode != 0:
         raise RuntimeError(f"ffprobe could not read {path}")
     data = json.loads(res.stdout or b"{}")
     streams = data.get("streams", [])
     v = next((s for s in streams if s.get("codec_type") == "video"), None)
+    a = next((s for s in streams if s.get("codec_type") == "audio"), None)
     return {
+        "sample_rate": int(a.get("sample_rate") or 0) if a else 0,
         "duration": float(data.get("format", {}).get("duration", 0) or 0),
         "has_audio": any(s.get("codec_type") == "audio" for s in streams),
         "width": int(v["width"]) if v else 0,
@@ -629,6 +637,56 @@ def load_set(con: sqlite3.Connection, set_id: int) -> CatalogSet:
 
 # ---------------------------------------------------------------- loops
 
+LOOP_OVERSAMPLE = 4
+TP_MARGIN_DB = 0.3      # first try limits this far under the ceiling; MP3 encoding adds a little
+
+
+def db_to_lin(db: float) -> float:
+    return 10 ** (db / 20)
+
+
+def loop_filter(start: float, length: float, *, rate: int, ceiling_db: float | None = None,
+                gain_db: float | None = None, fade: float = 0.005) -> str:
+    """The -af chain for one loop. The limiter runs on the whole source (so it has context
+    either side of the cut), at 4x the rate so inter-sample peaks are caught, with its
+    lookahead delay compensated (latency=1) so the cut does not move. Then the
+    sample-accurate atrim and the 5 ms fades, so the loop does not click."""
+    parts = []
+    if gain_db:
+        parts.append(f"volume={gain_db:.2f}dB")
+    if ceiling_db is not None:
+        limit = min(1.0, max(0.0625, db_to_lin(ceiling_db)))
+        parts += [f"aresample={rate * LOOP_OVERSAMPLE}",
+                  f"alimiter=limit={limit:.6f}:level=0:latency=1",
+                  f"aresample={rate}"]
+    parts += [f"atrim=start={start:.6f}:duration={length:.6f}", "asetpts=PTS-STARTPTS",
+              f"afade=t=in:d={fade}",
+              f"afade=t=out:st={max(0.0, length - fade):.6f}:d={fade}"]
+    return ",".join(parts)
+
+
+def parse_ebur128(stderr: str) -> dict:
+    """Integrated loudness and true peak from ffmpeg's ebur128=peak=true summary."""
+    out = {}
+    m = re.findall(r"\bI:\s+(-?[\d.]+|-inf) LUFS", stderr)
+    if m:
+        out["lufs"] = float(m[-1])
+    m = re.findall(r"Peak:\s+(-?[\d.]+|-inf) dBFS", stderr)
+    if m:
+        out["true_peak"] = float(m[-1])
+    return out
+
+
+def measure_ebur128(cfg: dict, path: Path, af_prefix: str = "") -> dict:
+    cmd = [cfg["ffmpeg"], "-hide_banner", "-nostats", "-i", str(path), "-af",
+           f"{af_prefix}ebur128=peak=true", "-f", "null", "-"]
+    if DRY_RUN:
+        print("  $ " + " ".join(q(c) for c in cmd), file=sys.stderr)
+        return {}
+    res = subprocess.run(cmd, capture_output=True)
+    return parse_ebur128(res.stderr.decode(errors="replace"))
+
+
 def cmd_loops(cfg: dict, args) -> int:
     P = paths(cfg)
     con = open_catalog(cfg)
@@ -655,20 +713,33 @@ def cmd_loops(cfg: dict, args) -> int:
             continue
         slug = existing["slug"] if existing else unique_slug(slugify(cs.name) or f"set-{sid}", sid, belt)
         src = Path(args.audio or cs.preview)
+        keep_start = None
+        if (existing and not args.audio and args.at is None and args.at_bar is None
+                and existing["start_s"] and existing["bars"] == str(bars)):
+            # A re-cut keeps the window and source it had; --at/--at-bar/--audio move it.
+            keep_start = float(existing["start_s"])
+            if existing["source"] and Path(existing["source"]).exists():
+                src = Path(existing["source"])
         if not src.exists():
             print(f"skip {sid}: preview missing on disk: {src}", file=sys.stderr)
             failures += 1
             continue
         try:
-            row = cut_loop(cfg, P, cs, slug, src, bars, args)
+            row = cut_loop(cfg, P, cs, slug, src, bars, args, start=keep_start)
         except RuntimeError as e:
             print(f"fail {slug}: {e}", file=sys.stderr)
             failures += 1
             continue
+        if existing:
+            if existing.get("title"):
+                row["title"] = existing["title"]   # hand edits survive a re-cut
+            if existing["status"] == HOLD:
+                row.update(status=HOLD, held_from="loop")
+        tp = row.pop("_tp", "")
         upsert(belt, row)
         write_csv(P["belt"], BELT_COLUMNS, belt)
         print(f"loop  {slug}: {row['bpm']} BPM {row['key'] or '(no key)'}, "
-              f"{bars} bars from {row['start_s']} s -> {row['wav']}")
+              f"{bars} bars from {row['start_s']} s{tp} -> {row['wav']}")
     return 1 if failures else 0
 
 
@@ -677,11 +748,14 @@ def unique_slug(base: str, set_id: int, belt: list[dict]) -> str:
     return base if base not in taken else f"{base}-{set_id}"
 
 
-def cut_loop(cfg: dict, P: dict, cs: CatalogSet, slug: str, src: Path, bars: int, args) -> dict:
+def cut_loop(cfg: dict, P: dict, cs: CatalogSet, slug: str, src: Path, bars: int, args,
+             start: float | None = None) -> dict:
     info = probe(cfg, src)
     length = bars_to_seconds(cs.bpm, bars, cs.beats)
     bar_len = bar_seconds(cs.bpm, cs.beats)
-    if args.at is not None:
+    if start is not None:
+        pass
+    elif args.at is not None:
         start = float(args.at)
     elif args.at_bar is not None:
         start = (args.at_bar - 1) * bar_len
@@ -697,19 +771,41 @@ def cut_loop(cfg: dict, P: dict, cs: CatalogSet, slug: str, src: Path, bars: int
     bpm = fmt_bpm(cs.bpm)
     base = "_".join(x for x in (slug, f"{bpm}bpm", key_short(cs.key)) if x)
     wav, mp3 = out_dir / f"{base}.wav", out_dir / f"{base}.mp3"
-    # Sample-accurate cut with atrim; 5 ms fades so the loop does not click.
-    af = (f"atrim=start={start:.6f}:duration={length:.6f},asetpts=PTS-STARTPTS,"
-          f"afade=t=in:d=0.005,afade=t=out:st={max(0.0, length - 0.005):.6f}:d=0.005")
-    run([cfg["ffmpeg"], "-v", "error", "-y", "-i", str(src), "-af", af, "-c:a", "pcm_s24le",
-         str(wav)])
-    # Port of process/encode.js: libmp3lame CBR 320k.
-    run([cfg["ffmpeg"], "-v", "error", "-y", "-i", str(wav), "-c:a", "libmp3lame", "-b:a", "320k",
-         str(mp3)])
+    rate = info.get("sample_rate") or 44100
+    tp_max = cfg.get("loop_true_peak_dbtp")
+    gain = None
+    if cfg.get("loop_target_lufs") is not None:
+        trim = f"atrim=start={start:.6f}:duration={length:.6f},"
+        lufs = measure_ebur128(cfg, src, trim).get("lufs")
+        if lufs is not None and lufs > -70:
+            gain = float(cfg["loop_target_lufs"]) - lufs
+    ceiling = None if tp_max is None else float(tp_max) - TP_MARGIN_DB
+    peaks = {}
+    for _ in range(4):
+        af = loop_filter(start, length, rate=rate, ceiling_db=ceiling, gain_db=gain)
+        run([cfg["ffmpeg"], "-v", "error", "-y", "-i", str(src), "-af", af,
+             "-c:a", "pcm_s24le", str(wav)])
+        # Port of process/encode.js: libmp3lame CBR 320k.
+        run([cfg["ffmpeg"], "-v", "error", "-y", "-i", str(wav), "-c:a", "libmp3lame",
+             "-b:a", "320k", str(mp3)])
+        if tp_max is None or DRY_RUN:
+            break
+        peaks = {f: measure_ebur128(cfg, f).get("true_peak") for f in (wav, mp3)}
+        over = max((v for v in peaks.values() if v is not None), default=None)
+        if over is None or over <= float(tp_max):
+            break
+        ceiling -= (over - float(tp_max)) + 0.1   # tighten by the overshoot and go again
+    else:
+        raise RuntimeError(f"true peak {over:.1f} dBTP still above {tp_max} after 4 tries")
+    tp_note = ""
+    if peaks:
+        tp_note = (f", true peak wav {peaks[wav]:.1f} / mp3 {peaks[mp3]:.1f} dBTP"
+                   if None not in peaks.values() else "")
     return {"slug": slug, "set_id": str(cs.set_id), "name": cs.name,
             "title": clean_title(cs.name, bpm), "bpm": bpm, "key": cs.key,
             "bars": str(bars), "start_s": f"{start:.3f}", "duration_s": f"{length:.3f}",
             "source": str(src), "wav": str(wav), "mp3": str(mp3), "clip": "", "clip_kind": "",
-            "status": "loop", "updated": now()}
+            "status": "loop", "updated": now(), "_tp": tp_note}
 
 
 # ---------------------------------------------------------------- clips
@@ -1013,6 +1109,10 @@ def cmd_clips(cfg: dict, args) -> int:
             P[k].mkdir(parents=True, exist_ok=True)
     failures = 0
     for r in rows:
+        if r["status"] == HOLD:
+            if args.slugs:
+                print(f"hold  {r['slug']}: {r['hold_reason'] or 'held'} (unhold it first)")
+            continue
         if r["status"] != "loop" and not args.force:
             continue
         slug = r["slug"]
@@ -1136,6 +1236,48 @@ def cmd_caption(cfg: dict, args) -> int:
     return 0
 
 
+def cmd_hold(cfg: dict, args) -> int:
+    """Take a loop off the belt for now: clips and pack skip it, and a queued (not posted)
+    queue row is dropped. The status it had is kept in held_from for `unhold`."""
+    P = paths(cfg)
+    belt = read_csv(P["belt"], BELT_COLUMNS)
+    row = next((r for r in belt if r["slug"] == args.slug), None)
+    if not row:
+        sys.exit(f"{args.slug} is not on the belt")
+    if row["status"] == "posted":
+        sys.exit(f"{args.slug} is already posted; nothing to hold")
+    reason = " ".join(args.reason).strip()
+    if row["status"] != HOLD:
+        row["held_from"] = row["status"]
+    row.update(status=HOLD, hold_reason=reason, updated=now())
+    write_csv(P["belt"], BELT_COLUMNS, belt)
+    queue = read_csv(P["queue"], QUEUE_COLUMNS)
+    kept = [q for q in queue if not (q["slug"] == args.slug and q["status"] == "queued")]
+    if len(kept) != len(queue):
+        write_csv(P["queue"], QUEUE_COLUMNS, kept)
+        print(f"queue {args.slug} dropped from {P['queue']}")
+    print(f"hold  {args.slug}" + (f": {reason}" if reason else ""))
+    return 0
+
+
+def cmd_unhold(cfg: dict, args) -> int:
+    P = paths(cfg)
+    belt = read_csv(P["belt"], BELT_COLUMNS)
+    row = next((r for r in belt if r["slug"] == args.slug), None)
+    if not row:
+        sys.exit(f"{args.slug} is not on the belt")
+    if row["status"] != HOLD:
+        print(f"skip {args.slug}: not on hold ({row['status']})")
+        return 0
+    back = row["held_from"] if row["held_from"] in STATUS_ORDER else "loop"
+    if back != "loop" and not (row["clip"] and Path(row["clip"]).exists()):
+        back = "loop"
+    row.update(status=back, hold_reason="", held_from="", updated=now())
+    write_csv(P["belt"], BELT_COLUMNS, belt)
+    print(f"unhold {args.slug} -> {back}")
+    return 0
+
+
 def cmd_posted(cfg: dict, args) -> int:
     P = paths(cfg)
     queue = read_csv(P["queue"], QUEUE_COLUMNS)
@@ -1202,11 +1344,17 @@ def cmd_status(cfg: dict, args) -> int:
     belt = read_csv(P["belt"], BELT_COLUMNS)
     queue = read_csv(P["queue"], QUEUE_COLUMNS)
     print(f"belt  {P['belt']}  ({len(belt)} loops)")
-    counts = {s: sum(1 for r in belt if r["status"] == s) for s in STATUS_ORDER}
+    counts = {s: sum(1 for r in belt if r["status"] == s) for s in STATUS_ORDER + [HOLD]}
     print("      " + "  ".join(f"{s} {n}" for s, n in counts.items()))
+    dim = sys.stdout.isatty()
     for r in belt:
-        print(f"      {r['status']:<7} {r['slug']:<24} {r['bpm']:>5} BPM  {r['key'] or '-':<9} "
-              f"{r['clip_kind'] or ''}")
+        line = (f"      {r['status']:<7} {r['slug']:<26} {r['bpm']:>5} BPM  {r['key'] or '-':<9} "
+                f"{r['clip_kind'] or ''}")
+        if r["status"] == HOLD:
+            line = line.rstrip() + f"  ({r['hold_reason'] or 'held'})"
+            if dim:
+                line = f"\033[2m{line}\033[0m"
+        print(line)
     print(f"queue {P['queue']}  ({len(queue)} rows)")
     for r in queue:
         print(f"      {r['date']}  {r['status']:<7} {r['slug']:<24} {r['caption']}"
@@ -1235,11 +1383,14 @@ def job_slugs(job: dict | None, belt: list[dict]) -> set[str]:
         return set()
     known = {r["slug"] for r in belt}
     named = {a for a in job["args"] if a in known}
+    if named and job["cmd"] == "clips":   # clips skips held rows: never shown as rendering
+        return named - {r["slug"] for r in belt if r["status"] == HOLD}
     if named or job["cmd"] in ("posted", "cover", "loops"):
         return named
     if job["cmd"] == "clips":
         force = "--force" in job["args"]
-        return {r["slug"] for r in belt if force or r["status"] == "loop"}
+        return {r["slug"] for r in belt
+                if r["status"] != HOLD and (force or r["status"] == "loop")}
     if job["cmd"] == "pack":
         return {r["slug"] for r in belt if r["status"] == "clip"}
     return set()
@@ -1248,6 +1399,8 @@ def job_slugs(job: dict | None, belt: list[dict]) -> set[str]:
 def next_action(row: dict, has_rec: bool, queued: bool) -> dict | None:
     """The one button a row shows: what moves it to the next station."""
     slug, st = row["slug"], row["status"]
+    if st == HOLD:
+        return None
     if st == "loop":
         return {"label": "Render", "cmd": "clips", "args": [slug]} if has_rec else None
     if st == "clip" or (st == "packed" and not queued):
@@ -1278,12 +1431,16 @@ def build_state(cfg: dict, job: dict | None = None, failures: dict | None = None
         clip = Path(r["clip"]) if r["clip"] else None
         has_clip = bool(clip and clip.exists())
         q = qby.get(slug)
-        station = STATUS_STATION.get(r["status"], 0)
+        station = STATUS_STATION.get(r["held_from"] if r["status"] == HOLD else r["status"], 0)
+        if r["status"] == HOLD and not has_clip:
+            station = 0
         fail = failures.get(slug)
         if slug in busy:
             state = "rendering"
         elif fail:
             state = "failed"
+        elif r["status"] == HOLD:
+            state = "held"
         elif r["status"] == "posted":
             state = "posted"
         elif q and q["status"] == "queued":
@@ -1307,13 +1464,17 @@ def build_state(cfg: dict, job: dict | None = None, failures: dict | None = None
             "queue_date": q["date"] if q else "", "caption": q["caption"] if q else "",
             "posted_at": q["posted_at"] if q else "", "action": action,
             "error": fail["line"] if fail else "",
+            "hold_reason": r["hold_reason"] if r["status"] == HOLD else "",
         })
-    # Posted rows sink below the active ones; the rest keep belt order.
-    rows.sort(key=lambda x: x["state"] == "posted")
+    # Held rows sink below the active ones, posted rows below those; the rest keep belt order.
+    rows.sort(key=lambda x: {"held": 1, "posted": 2}.get(x["state"], 0))
     posted = sum(1 for r in belt if r["status"] == "posted")
     nxt = next((q for q in queue if q["status"] == "queued"), None)
     n = len(belt)
+    held = sum(1 for r in belt if r["status"] == HOLD)
     line = f"{n} loop{'' if n == 1 else 's'}, {posted} posted"
+    if held:
+        line += f", {held} on hold"
     if nxt:
         line += f", next: {nxt['slug']} on {nxt['date']}"
     return {
@@ -1654,6 +1815,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("slug")
     s.add_argument("text", help="caption; {bpm} and {key} are filled from the belt")
 
+    s = sub.add_parser("hold", help="take a loop off the belt for now, with a reason")
+    s.add_argument("slug")
+    s.add_argument("reason", nargs="*", help="why (rights, quality); shown in status and the app")
+
+    s = sub.add_parser("unhold", help="put a held loop back where it was")
+    s.add_argument("slug")
+
     s = sub.add_parser("posted", help="mark a queued clip as posted")
     s.add_argument("slug")
     s.add_argument("--date", help="ISO date (default today)")
@@ -1685,7 +1853,7 @@ def main(argv: list[str] | None = None) -> int:
     DRY_RUN = args.dry_run
     cfg = load_config(args.config)
     handler = {"loops": cmd_loops, "clips": cmd_clips, "pack": cmd_pack,
-               "posted": cmd_posted, "caption": cmd_caption, "cover": cmd_cover, "status": cmd_status,
+               "posted": cmd_posted, "caption": cmd_caption, "hold": cmd_hold, "unhold": cmd_unhold, "cover": cmd_cover, "status": cmd_status,
                "serve": cmd_serve}[args.cmd]
     return handler(cfg, args)
 
