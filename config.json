@@ -103,5 +103,6 @@
       "maximum_height": 8
     },
     "_display_options": "0 Digital, 1 Analog lines, 2 Analog dots"
-  }
+  },
+  "palette_mode": "random2021"
 }

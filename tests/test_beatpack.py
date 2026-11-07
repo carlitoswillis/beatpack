@@ -103,6 +103,7 @@ class Filtergraph(unittest.TestCase):
     def test_palette_rotation(self):
         c = cfg()
         belt = [{"slug": s, "palette": ""} for s in "abc"]
+        c["palette_mode"] = "rotate"
         self.assertEqual(bp.pick_palette(c, belt, belt[1])["name"], c["palette"][1]["name"])
         self.assertEqual(bp.pick_palette(c, belt, belt[0], "salmon")["ink"], "#1A1A1A")
 
@@ -176,3 +177,19 @@ class EffectCraftTemplate(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Palette2021(unittest.TestCase):
+    def test_seeded_roll_is_stable_and_in_range(self):
+        a, b = bp.palette_2021("regal"), bp.palette_2021("regal")
+        self.assertEqual(a, b)
+        r, g, bl = (int(a["bg"][i:i + 2], 16) for i in (1, 3, 5))
+        in_v1 = 0 <= r <= 255 and 0 <= g <= 130 and 175 <= bl <= 255
+        in_v2 = 205 <= r <= 255 and 0 <= g <= 190 and (bl == 0 or 175 <= bl <= 255)
+        self.assertTrue(in_v1 or in_v2, a)
+        self.assertIn(a["line"], ("left", "right", "bottom"))
+
+    def test_hex_name_round_trips(self):
+        p = bp.palette_2021("ssg-126")
+        again = bp.pick_palette({"palette": [], "palette_mode": "random2021"}, [], {"palette": p["name"], "slug": "ssg-126"})
+        self.assertEqual(again, p)

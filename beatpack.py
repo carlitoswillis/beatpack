@@ -49,6 +49,10 @@ DEFAULTS = {
     "title": {"right_x": 1020, "top_y": 280, "title_size": 90, "line_size": 55,
               "line_pitch": 58, "gap_after_title": 10, "ascent": 0.72,
               "double_offset": [0, 300], "double_color": None},
+    # Canvas colour per clip. "random2021" rolls a tint the way the 2018-19 makeCover.js did
+    # (two ranges: blues/purples, or reds/oranges/pinks), seeded by the slug so a re-render
+    # gives the same colour. "rotate" walks the fixed list below instead.
+    "palette_mode": "random2021",
     # One flat canvas per clip, rotated down the belt. line: where the 1 px scope runs.
     "palette": [
         {"name": "black", "bg": "#000000", "ink": "#E6E6E6", "line": "bottom"},
@@ -215,13 +219,45 @@ def title_lines(cfg: dict, title: str, bpm: str, key: str) -> list[tuple[str, in
     return out
 
 
+def palette_2021(seed: str) -> dict:
+    """The old makeCover.js tint roll, seeded. v1: r 0-255, g 0-130, b 175-255 (blues,
+    purples, magentas). v2: r 205-255, g 0-190, b 0 or 175-255 (reds, oranges, pinks).
+    Ink and scope edge follow the canvas luminance: dark canvas, light ink, line along
+    the bottom; light canvas, dark ink, line down the left or right edge."""
+    import random
+    rnd = random.Random(seed)
+    if rnd.random() < 0.5:
+        r, g, b = rnd.randint(0, 255), rnd.randint(0, 130), rnd.randint(175, 255)
+    else:
+        r, g, b = rnd.randint(205, 255), rnd.randint(0, 190), rnd.choice([0, rnd.randint(175, 255)])
+    return palette_from_bg(f"#{r:02X}{g:02X}{b:02X}", seed)
+
+
+def palette_from_bg(bg: str, seed: str) -> dict:
+    """Ink and scope edge for a canvas hex; the edge pick is seeded so it repeats."""
+    import random
+    bg = bg.upper()
+    r, g, b = (int(bg[i:i + 2], 16) for i in (1, 3, 5))
+    lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    dark = lum < 0.35
+    line = "bottom" if dark else random.Random(seed + "/edge").choice(["left", "right"])
+    return {"name": bg, "bg": bg, "ink": "#E6E6E6" if dark else "#1A1A1A", "line": line}
+
+
 def pick_palette(cfg: dict, belt: list[dict], row: dict, name: str | None = None) -> dict:
-    """A named palette entry, else the row's stored one, else rotate by belt position."""
+    """A named palette entry, else the row's stored one (a name or a #hex from a previous
+    roll), else a seeded 2021-style roll (palette_mode random2021) or rotate by position."""
     pal = cfg["palette"]
     want = name or row.get("palette")
     for p in pal:
         if p["name"] == want:
             return p
+    if want and re.fullmatch(r"#[0-9A-Fa-f]{6}", want):
+        return palette_from_bg(want, row.get("slug", "") or want)  # stored hex repeats
+    if name and re.fullmatch(r"#[0-9A-Fa-f]{6}", name):
+        return palette_from_bg(name, row.get("slug", "") or name)
+    if cfg.get("palette_mode", "rotate") == "random2021":
+        return palette_2021(row.get("slug", "") or str(belt.index(row)))
     return pal[belt.index(row) % len(pal)]
 
 
@@ -287,9 +323,10 @@ VIZ_KINDS = ("osc", "bars", "strip")
 def scope_box(cfg: dict, line: str) -> tuple[int, int, int, int, bool]:
     """(x, y, w, h, vertical) of the visualizer box for a palette's line edge."""
     sc, a = cfg["scope"], cfg["scope"]["amplitude_px"]
-    if line == "left":
+    if line in ("left", "right"):
         y0, y1 = sc["left_y"]
-        return sc["left_x"] - a // 2, y0, a, y1 - y0, True
+        x = sc["left_x"] if line == "left" else FRAME_W - sc["left_x"]
+        return x - a // 2, y0, a, y1 - y0, True
     x0, x1 = sc["bottom_x"]
     return x0, sc["bottom_y"] - a // 2, x1 - x0, a, False
 
@@ -761,13 +798,15 @@ def hex_rgba(hex_color: str) -> list[float]:
 
 def effectcraft_values(cfg: dict, job: ClipJob, src_w: int, src_h: int, duration: float) -> dict:
     pal, t, sc = job.palette, cfg["title"], cfg["scope"]
-    edge = pal["line"] if pal["line"] in ("left", "bottom") else "bottom"
+    side = pal["line"] if pal["line"] in ("left", "right", "bottom") else "bottom"
+    edge = "bottom" if side == "bottom" else "left"      # viz settings are per orientation
     v = cfg["viz_effectcraft"][edge]
     fg_scale = FRAME_W / src_w * 100.0
     vis_h = min(src_h, FOOT_BAND_H / (fg_scale / 100.0))      # source px kept by the mask
     mask = [0, round((src_h - vis_h) / 2.0, 2), src_w, round(vis_h, 2)]
-    if edge == "left":
-        start, end = [sc["left_x"], sc["left_y"][0]], [sc["left_x"], sc["left_y"][1]]
+    if side in ("left", "right"):
+        x = sc["left_x"] if side == "left" else FRAME_W - sc["left_x"]
+        start, end = [x, sc["left_y"][0]], [x, sc["left_y"][1]]
     else:
         start, end = [sc["bottom_x"][0], sc["bottom_y"]], [sc["bottom_x"][1], sc["bottom_y"]]
     audio = job.audio or job.footage
