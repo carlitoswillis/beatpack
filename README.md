@@ -16,6 +16,7 @@ brew install ffmpeg graphicsmagick
 #   commit bb2d2005cee68458a10ae2cc32d609d070b21744 (v0.21.0)
 #   cargo build --release -p effectcraft-cli   -> ~/workspace/effectcraft/repo/target/release/effectcraft-cli
 python3 -m unittest            # run from the repo root; offline tests, no tools needed
+python3 -I beatpack.py serve   # the belt as a local app
 ```
 
 Without EffectCraft, pass `--renderer ffmpeg` or set `"renderer": "ffmpeg"` in `config.json`.
@@ -31,6 +32,20 @@ Without EffectCraft, pass `--renderer ffmpeg` or set `"renderer": "ffmpeg"` in `
 5. **Pack and queue.** `python3 beatpack.py pack` zips every loop that has a clip into `packs/<date>-loops.zip` (with a plain README) and adds each new clip to `queue.csv`, one per day from tomorrow. Put the zip behind the bio link.
 6. **Post by hand, then mark it.** Each day, `python3 beatpack.py status` shows the next clip and its caption. Post it from the phone, then run `python3 beatpack.py posted <slug>`.
 
+## The app: `serve`
+
+`python3 -I beatpack.py serve` opens the belt in the browser at `http://127.0.0.1:8787/`. It is the same tool with a window: one row per loop, moving through four stations (loop, clip, pack, posted), and one button per row that does the next thing.
+
+- **Render** runs `clips <slug>`, **Pack** runs `pack`, **Mark posted** runs `posted <slug>`. Each runs the same code as the CLI, one job at a time, in the background. Its output streams to the log drawer at the bottom of the window.
+- **Missing recording:** drop the .mov or .mp4 on the row (or use "choose a file"). It is copied to `inbox/<slug>.<ext>`. An existing recording is never overwritten.
+- **Rendering:** the station being worked on is the only amber thing on screen, with the elapsed time. Other buttons wait.
+- **Failed:** a crossed square, the word "failed", the line that explains it, and **Retry**. Failures are kept in memory until the next run of that row or a server restart.
+- **Thumbnails:** one frame at 3 s per clip, made with ffmpeg on first view and cached in `~/Music/loopbelt/thumbs/`. A new render replaces it. A loop with no clip shows a flat block in its canvas colour.
+- Flags: `--port` (default 8787) and `--no-open`. If something already listens on the port, it moves to the next free one and prints the URL. Global flags still go first: `python3 beatpack.py --config scratch.json serve`.
+- It listens on 127.0.0.1 only and answers only requests addressed to that host. It posts, uploads and deletes nothing. Stop it with Ctrl-C, or `pkill -f "beatpack.py serve"`.
+
+Routes, for scripting: `GET /api/state`, `GET /api/log?since=N`, `POST /api/run` with JSON `{"cmd": "clips", "args": ["regal", "--force"]}` (loops, clips, pack, posted, cover), and `POST /api/inbox?slug=<slug>&ext=mov` with the file as the body and the header `X-Beatpack: 1`.
+
 ## Subcommands
 
 | Command | Example | What it does |
@@ -41,6 +56,7 @@ Without EffectCraft, pass `--renderer ffmpeg` or set `"renderer": "ffmpeg"` in `
 | `posted` | `posted regal` | Marks the queue row posted with today's date (`--date` to override) and sets the belt row to `posted`. |
 | `cover` | `cover "regal" --palette coral --bpm 180 --key "A minor"` | Writes 3000x3000 and 1080x1080 PNGs to `covers/`: a flat canvas (or `--bg image`), the same doubled title block, and an optional `--logo assets/logo.png` (full-frame overlay; `--logo-corner` puts a small mark bottom right). |
 | `status` | `status` | Counts by status, every belt row, every queue row, and the next post. |
+| `serve` | `serve --port 8787` | The belt as a local app in the browser (see above). |
 
 Global flags: `--config path.json` and `--dry-run`, which prints every ffmpeg, gm and EffectCraft command and writes nothing. They go **before** the subcommand (`python3 beatpack.py --dry-run clips regal`); after it, argparse rejects them.
 
@@ -85,6 +101,7 @@ Adding a renderer means adding a function `render_x(cfg, job)` and an entry in `
   packs/<date>-loops.zip
   covers/<name>-3000.png, <name>-1080.png
   stills/                optional fallback images
+  thumbs/<slug>.jpg      app thumbnails (frame at 3 s), safe to delete
   .work/                 title PNGs, per-clip EffectCraft projects, logs
 ```
 
