@@ -2,10 +2,10 @@
 #
 # BeatPack ffmpeg scratch recipes
 # ------------------------------
-# These are exploratory one-liners, NOT part of the application pipeline.
-# Nothing in process/ requires this file. It exists so the commands live
-# somewhere they can actually be run, instead of in a .js file that was
-# never valid JavaScript.
+# Recipes 1-3 are exploratory one-liners kept from the old app. The final
+# clip filtergraphs that beatpack.py builds are at the end of this file.
+# The file exists so the commands live somewhere they can actually be run,
+# instead of in a .js file that was never valid JavaScript.
 #
 # History: these were previously "ffmpeg analyze audio.js" and
 # "process/showwaves.js" -- two shell scratchpads with .js extensions.
@@ -112,3 +112,68 @@ mkdir -p "$OUTDIR"
   -filter_complex "[0:a]showwaves=s=1920x60:mode=line:colors=white:draw=full,format=rgba[v]" \
   -map "[v]" -map 0:a -c:v png \
   "$OUTDIR/showwaves-overlay.mov" -y
+
+# =====================================================================
+# FINAL CLIP RECIPES (beatpack.py, 2026-11-06)
+# =====================================================================
+# These are what `beatpack.py clips --renderer ffmpeg` runs, printed from
+# clip_filtergraph() for a 1920x1080 source. This section is comments only;
+# running the script still runs just recipes 1-3 above.
+#
+# Layout: the 2021 barlitxs look. Flat canvas from the palette, the screen
+# recording as a full-width panel at y 760-1300 (scaled to width 1080,
+# centre-cropped to 540 high), a 1 px oscilloscope (showwaves p2p) in the
+# ink colour, and the title block as a transparent PNG made by gm.
+#
+# Lessons kept from process/ffmpeg.js and found again here:
+#   - `-shortest` does not bound `-stream_loop -1`; bound with `-t`.
+#   - a still needs `-loop 1 -framerate 30`, or it becomes a 1-frame video.
+#   - NEW: every `-loop 1` image input also needs an INPUT-side `-t`
+#     (`-loop 1 -framerate 30 -t 15.238 -i still.png`). Without it the graph
+#     never finishes once the audio ends (measured: stuck at 14.6 s of 15.2).
+#   - colorkey=black would also remove a dark ink (#1A1A1A), so the scope is
+#     drawn white as a mask and alphamerged onto a solid of the ink colour.
+#   - showwaves mode=line fills centre-to-sample (thick); p2p is a 1 px trace.
+#   - showwaves shows exactly one frame period of audio per frame (33 ms at
+#     30 fps); a longer window needs EffectCraft's Audio Waveform.
+#
+# Title block (gm draws text at the BASELINE even with -gravity NorthEast):
+#   gm convert -size 1080x1920 xc:none -gravity NorthEast -font VCR_OSD_MONO_1.001.ttf \
+#     -fill '#1A1A1A' -pointsize 90 -draw "text 60,344.8 'HER'" \
+#     -pointsize 55 -draw "text 60,419.6 'prod. barlitxs'" ... \
+#     (then the same four lines again 6 px right and 40 px down) text.png
+#
+# A. Screen recording that carries its own audio, colour canvas (coral),
+#    vertical scope on the left edge. Inputs: 0 = recording, 1 = text.png.
+#    The recording is never cut; LOUDNORM_2ND_PASS is the measured
+#    loudnorm=I=-14:TP=-1:LRA=11:measured_*=...:linear=true string.
+#
+#   ffmpeg -i inbox/<slug>.mov -loop 1 -framerate 30 -t <rec_seconds> -i text.png \
+#     -filter_complex "<graph A>" -map "[v]" -map "[aud]" -r 30 \
+#     -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -profile:v high \
+#     -movflags +faststart -c:a aac_at -b:a 256k -ar 48000 clips/<slug>.mp4
+#
+# graph A:
+#   color=c=0xD4554A:s=1080x1920:r=30:d=20.000[cv];
+#   [0:v]fps=30,scale=1080:608,crop=1080:540,setsar=1[fg];
+#   [cv][fg]overlay=0:760:shortest=1[base];
+#   [0:a]asplit=2[aw][an];
+#   [aw]aformat=channel_layouts=mono,showwaves=s=1300x40:mode=p2p:draw=full:rate=30:colors=white,format=gray,transpose=clock[wvm];color=c=0x1A1A1A:s=40x1300:r=30:d=20.000[wvc];[wvc][wvm]alphamerge[wv];
+#   [base][wv]overlay=20:300:shortest=1[v1];
+#   [1:v]format=rgba[tx];
+#   [v1][tx]overlay=0:0:shortest=1,format=yuv420p[v];
+#   [an]LOUDNORM_2ND_PASS,aresample=48000[aud]
+#
+# B. Still fallback, dark canvas (black), horizontal scope at y 1560.
+#    Inputs: 0 = still (-loop 1 -framerate 30 -t <loop_s>), 1 = text.png (same),
+#    2 = loop WAV; add -t <loop_s> on the output.
+#
+#   color=c=0x000000:s=1080x1920:r=30:d=15.238[cv];
+#   [0:v]fps=30,scale=1080:608,crop=1080:540,setsar=1[fg];
+#   [cv][fg]overlay=0:760:shortest=1[base];
+#   [2:a]asplit=2[aw][an];
+#   [aw]aformat=channel_layouts=mono,showwaves=s=840x40:mode=p2p:draw=full:rate=30:colors=white,format=gray[wvm];color=c=0xE6E6E6:s=840x40:r=30:d=15.238[wvc];[wvc][wvm]alphamerge[wv];
+#   [base][wv]overlay=120:1540:shortest=1[v1];
+#   [1:v]format=rgba[tx];
+#   [v1][tx]overlay=0:0:shortest=1,format=yuv420p[v];
+#   [an]LOUDNORM_2ND_PASS,aresample=48000[aud]
