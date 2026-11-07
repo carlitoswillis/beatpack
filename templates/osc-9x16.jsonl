@@ -1,6 +1,6 @@
 {"note": "flat canvas from the palette; no blur, no darkened copy", "command": "comp.new", "params": {"name": "Main", "width": 1080, "height": 1920, "frameRate": 30, "duration": "{{DURATION}}", "background": "{{CANVAS}}"}}
 {"command": "file.import", "params": {"paths": "{{IMPORTS}}"}}
-{"note": "footage panel: full width, middle band y 760-1300", "command": "layer.addItem", "params": {"item": "{{FOOTAGE_ITEM}}"}}
+{"note": "footage panel: full width, middle band y 900-1440", "command": "layer.addItem", "params": {"item": "{{FOOTAGE_ITEM}}"}}
 {"command": "prop.set", "params": {"layer": "#1", "path": "transform/scale", "value": ["{{FG_SCALE}}", "{{FG_SCALE}}", 100]}}
 {"command": "layer.addMask", "params": {"layer": "#1", "shape": "rect", "rect": "{{FG_MASK}}"}}
 {"command": "prop.set", "params": {"layer": "#1", "path": "transform/position", "value": "{{FG_POS}}"}}

@@ -48,7 +48,7 @@ DEFAULTS = {
     "effectcraft_bitrate_kbps": 10000,
     "title": {"right_x": 1020, "top_y": 280, "title_size": 90, "line_size": 55,
               "line_pitch": 58, "gap_after_title": 10, "ascent": 0.72,
-              "double_offset": [6, 40], "double_color": None},
+              "double_offset": [0, 300], "double_color": None},
     # One flat canvas per clip, rotated down the belt. line: where the 1 px scope runs.
     "palette": [
         {"name": "black", "bg": "#000000", "ink": "#E6E6E6", "line": "bottom"},
@@ -88,7 +88,7 @@ STATUS_ORDER = ["loop", "clip", "packed", "posted"]
 # Frame grid for the 1080x1920 clip: the 2021 barlitxs look (research/16). Flat canvas,
 # footage as a full-width panel in the middle band, title block top right, 1 px scope.
 FRAME_W, FRAME_H = 1080, 1920
-FOOT_BAND_Y, FOOT_BAND_H = 760, 540
+FOOT_BAND_Y, FOOT_BAND_H = 900, 540
 
 DRY_RUN = False
 

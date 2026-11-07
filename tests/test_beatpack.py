@@ -97,8 +97,8 @@ class Csv(unittest.TestCase):
 
 class Filtergraph(unittest.TestCase):
     def test_footage_band(self):
-        self.assertEqual(bp.footage_geometry(1920, 1080), (608, 540, 760))
-        self.assertEqual(bp.footage_geometry(1080, 400), (400, 400, 830))
+        self.assertEqual(bp.footage_geometry(1920, 1080), (608, 540, 900))
+        self.assertEqual(bp.footage_geometry(1080, 400), (400, 400, 970))
 
     def test_palette_rotation(self):
         c = cfg()
@@ -115,7 +115,7 @@ class Filtergraph(unittest.TestCase):
                                 palette=pal, box=box, bound=20.0)
         self.assertIn("color=c=0xD4554A:s=1080x1920", g)
         self.assertIn("scale=1080:608,crop=1080:540", g)
-        self.assertIn("[cv][fg]overlay=0:760", g)
+        self.assertIn("[cv][fg]overlay=0:900", g)
         self.assertIn("[0:a]asplit=2", g)
         self.assertIn("mode=p2p", g)
         self.assertIn("transpose=clock", g)

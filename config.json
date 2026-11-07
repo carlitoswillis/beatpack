@@ -29,8 +29,8 @@
     "gap_after_title": 10,
     "ascent": 0.72,
     "double_offset": [
-      6,
-      40
+      0,
+      300
     ],
     "double_color": null
   },
