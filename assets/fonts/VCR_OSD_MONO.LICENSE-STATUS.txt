@@ -40,3 +40,25 @@ recorded rather than invisible.
 
 The font is used by process/makeCover.js for cover-art text rendering, so
 substituting it is a visual change, not a no-op.
+
+RESEARCH FINDING (2026-11-06) -- still UNRESOLVED, verdict: do not rely on it
+-----------------------------------------------------------------------------
+Author: Riciery (Santos) Leal, dafont handle "MrManet" (matches nameID 9).
+Embedded name table has no copyright, licence text or licence URL
+(confirmed again with `strings`).
+
+Only published terms: dafont tags it "100% Free" (no readme in the
+dl.dafont.com zip, which holds just the .ttf, v1.001, dated 2015-03-31).
+dafont's own FAQ says the label "is just an indication" and that a missing
+licence "doesn't mean it's free". No author site, no GitHub licence file found.
+So commercial use in videos or a free loop pack is NOT granted in writing.
+
+Sources:
+  https://www.dafont.com/vcr-osd-mono.font
+  https://www.dafont.com/faq.php
+  https://github.com/mehmetraif/OSD-OS/wiki/Credits  (credits only, no licence)
+Version note: only 1.001 exists on dafont; no term change found.
+
+Nearest OFL substitutes (google/fonts, OFL 1.1): Pixelify Sans (closest in
+width and weight), VT323 (already bundled here, narrower).
+Samples: producer/research/viz-samples/font-*.png
