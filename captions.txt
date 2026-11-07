@@ -1,18 +1,19 @@
 # One caption per line, used in queue order (day 1 = line 1, wraps after the last).
 # Lines starting with # are ignored. {bpm} and {key} are filled in; with no key, {key} is dropped.
-# Use a context line ("made this at 2am", "found this in an old project") only when it is true
-# for that loop. Swap in a plain caption (lines 1, 6, 10) rather than stretch it.
+# Lines starting with "? " are hand-pick only: pack never assigns them. They carry a context claim
+# ("made this at 2am", "found this in an old project") that may not be true for a given loop.
+# Use one only when it is true, via: python3 beatpack.py caption <slug> "<text>" (or pack --caption <slug>=<text>).
 new loop. {bpm} bpm {key}. free download, link in bio
-made this at 2am. {bpm} bpm {key}. free loop in bio
-flipped nothing, all keys. {bpm} bpm {key}. free in the telegram, link in bio
+? made this at 2am. {bpm} bpm {key}. free loop in bio
+? flipped nothing, all keys. {bpm} bpm {key}. free in the telegram, link in bio
 {bpm} bpm {key}. if you make something with it, send it to me. free loop in bio
-found this in an old project and cleaned it up. {bpm} bpm {key}. free loop in bio
+? found this in an old project and cleaned it up. {bpm} bpm {key}. free loop in bio
 {bpm} bpm {key}. that's it. free loop, link in bio
-half-time, left room for a vocal. {bpm} bpm {key}. free loop in bio
+? half-time, left room for a vocal. {bpm} bpm {key}. free loop in bio
 producers, the drums on this one are yours. send me what you do. {bpm} bpm {key}. free in bio
 one week of these. thanks to everyone downloading. {bpm} bpm {key}. free loop in bio
 just keys and a pad. {bpm} bpm {key}. free download, link in bio
 an r&b one. {bpm} bpm {key}. free loop in bio
 artists, if you write to this, let me hear it. {bpm} bpm {key}. free loop in bio
-longest week. still posting. {bpm} bpm {key}. free loop in bio
+? longest week. still posting. {bpm} bpm {key}. free loop in bio
 two weeks, fourteen loops. {bpm} bpm {key}. all of them free in the telegram, link in bio

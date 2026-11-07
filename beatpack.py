@@ -299,16 +299,26 @@ def slugify(name: str) -> str:
     return s[:48].strip("-")
 
 
-def load_captions(cfg: dict) -> list[str]:
-    """Non-blank, non-# lines of the captions file; [] when it is missing or empty."""
-    p = Path(os.path.expanduser(str(cfg.get("captions") or "")))
-    if not str(cfg.get("captions") or ""):
+def _caption_lines(cfg: dict) -> list[str]:
+    name = str(cfg.get("captions") or "")
+    if not name:
         return []
+    p = Path(os.path.expanduser(name))
     p = p if p.is_absolute() else REPO / p
     if not p.is_file():
         return []
     return [ln.strip() for ln in p.read_text().splitlines()
             if ln.strip() and not ln.lstrip().startswith("#")]
+
+
+def load_captions(cfg: dict) -> list[str]:
+    """Captions pack may assign by position: every line not marked "? " ([] if file missing)."""
+    return [ln for ln in _caption_lines(cfg) if not ln.startswith("?")]
+
+
+def hand_captions(cfg: dict) -> list[str]:
+    """Hand-pick-only lines ("? " prefix, stripped): never assigned automatically."""
+    return [ln[1:].strip() for ln in _caption_lines(cfg) if ln.startswith("?")]
 
 
 def fill_caption(line: str, bpm: str, key: str) -> str:
@@ -1085,6 +1095,11 @@ def cmd_pack(cfg: dict, args) -> int:
             r["status"], r["updated"] = "packed", now()
     write_csv(P["belt"], BELT_COLUMNS, belt)
     refresh_queue(cfg, P, belt, today)
+    for item in getattr(args, "caption", None) or []:
+        slug, _, text = item.partition("=")
+        if not text:
+            sys.exit(f"--caption wants slug=text, got {item!r}")
+        cmd_caption(cfg, argparse.Namespace(slug=slug, text=text))
     return 0
 
 
@@ -1106,6 +1121,19 @@ def refresh_queue(cfg: dict, P: dict, belt: list[dict], today: dt.date) -> list[
     print(f"queue {len(new)} added, {sum(1 for x in queue if x['status'] == 'queued')} queued "
           f"-> {P['queue']}")
     return queue
+
+
+def cmd_caption(cfg: dict, args) -> int:
+    P = paths(cfg)
+    queue = read_csv(P["queue"], QUEUE_COLUMNS)
+    row = next((r for r in queue if r["slug"] == args.slug), None)
+    if not row:
+        sys.exit(f"{args.slug} is not in {P['queue']}")
+    b = next((r for r in read_csv(P["belt"], BELT_COLUMNS) if r["slug"] == args.slug), None)
+    row["caption"] = fill_caption(args.text, b["bpm"] if b else "", b["key"] if b else "")
+    write_csv(P["queue"], QUEUE_COLUMNS, queue)
+    print(f"caption {args.slug}: {row['caption']}")
+    return 0
 
 
 def cmd_posted(cfg: dict, args) -> int:
@@ -1619,6 +1647,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("pack", help="zip loops with clips and refresh queue.csv")
     s.add_argument("--captions", help="captions file, one per line (default from config: captions.txt)")
+    s.add_argument("--caption", action="append", metavar="SLUG=TEXT",
+                   help="set one queued row's caption by hand (repeatable)")
+
+    s = sub.add_parser("caption", help="set one queued row's caption by hand")
+    s.add_argument("slug")
+    s.add_argument("text", help="caption; {bpm} and {key} are filled from the belt")
 
     s = sub.add_parser("posted", help="mark a queued clip as posted")
     s.add_argument("slug")
@@ -1651,7 +1685,7 @@ def main(argv: list[str] | None = None) -> int:
     DRY_RUN = args.dry_run
     cfg = load_config(args.config)
     handler = {"loops": cmd_loops, "clips": cmd_clips, "pack": cmd_pack,
-               "posted": cmd_posted, "cover": cmd_cover, "status": cmd_status,
+               "posted": cmd_posted, "caption": cmd_caption, "cover": cmd_cover, "status": cmd_status,
                "serve": cmd_serve}[args.cmd]
     return handler(cfg, args)
 
