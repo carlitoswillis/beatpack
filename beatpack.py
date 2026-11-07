@@ -10,14 +10,18 @@ import argparse
 import array
 import csv
 import datetime as dt
+import http.server
 import json
 import math
 import os
 import re
 import shutil
+import socket
 import sqlite3
 import subprocess
 import sys
+import threading
+import urllib.parse
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1151,6 +1155,372 @@ def cmd_status(cfg: dict, args) -> int:
     return 0
 
 
+# ---------------------------------------------------------------- serve (the local app)
+#
+# `beatpack serve`: a stdlib http.server on 127.0.0.1 that shows the belt (app/index.html)
+# and runs the same subcommands as the CLI, one at a time, in a background thread.
+
+STATUS_STATION = {"loop": 0, "clip": 1, "packed": 2, "posted": 3}
+CMD_STATION = {"loops": 0, "clips": 1, "pack": 2, "posted": 3, "cover": 1}
+RUN_CMDS = ("loops", "clips", "pack", "posted", "cover")
+UPLOAD_EXTS = ("mov", "mp4", "m4v")
+
+
+def job_slugs(job: dict | None, belt: list[dict]) -> set[str]:
+    """Belt slugs a job will touch: the slugs named in its args, else what the command
+    picks on its own (clips: loops without a clip, or every row with --force; pack: clips)."""
+    if not job:
+        return set()
+    known = {r["slug"] for r in belt}
+    named = {a for a in job["args"] if a in known}
+    if named or job["cmd"] in ("posted", "cover", "loops"):
+        return named
+    if job["cmd"] == "clips":
+        force = "--force" in job["args"]
+        return {r["slug"] for r in belt if force or r["status"] == "loop"}
+    if job["cmd"] == "pack":
+        return {r["slug"] for r in belt if r["status"] == "clip"}
+    return set()
+
+
+def next_action(row: dict, has_rec: bool, queued: bool) -> dict | None:
+    """The one button a row shows: what moves it to the next station."""
+    slug, st = row["slug"], row["status"]
+    if st == "loop":
+        return {"label": "Render", "cmd": "clips", "args": [slug]} if has_rec else None
+    if st == "clip" or (st == "packed" and not queued):
+        return {"label": "Pack", "cmd": "pack", "args": []}
+    if st == "packed":
+        return {"label": "Mark posted", "cmd": "posted", "args": [slug]}
+    return None
+
+
+def thumb_path(cfg: dict, slug: str) -> Path:
+    return paths(cfg)["root"] / "thumbs" / f"{slug}.jpg"
+
+
+def build_state(cfg: dict, job: dict | None = None, failures: dict | None = None,
+                today: dt.date | None = None) -> dict:
+    """Everything the belt screen draws, from belt.csv, queue.csv and the inbox. No network,
+    no subprocess: thumbnails are only referenced here (made on request by /thumb)."""
+    P = paths(cfg)
+    belt = read_csv(P["belt"], BELT_COLUMNS)
+    queue = read_csv(P["queue"], QUEUE_COLUMNS)
+    qby = {q["slug"]: q for q in queue}
+    failures = failures or {}
+    busy = set(job["slugs"]) if job and "slugs" in job else job_slugs(job, belt)
+    rows = []
+    for r in belt:
+        slug = r["slug"]
+        rec = find_recording(P["inbox"], slug)
+        clip = Path(r["clip"]) if r["clip"] else None
+        has_clip = bool(clip and clip.exists())
+        q = qby.get(slug)
+        station = STATUS_STATION.get(r["status"], 0)
+        fail = failures.get(slug)
+        if slug in busy:
+            state = "rendering"
+        elif fail:
+            state = "failed"
+        elif r["status"] == "posted":
+            state = "posted"
+        elif q and q["status"] == "queued":
+            state = "queued"
+        elif r["status"] == "loop" and not rec:
+            state = "empty"
+        else:
+            state = "done"
+        src = job if slug in busy else fail
+        target = CMD_STATION.get(src["cmd"], station) if src else min(station + 1, 3)
+        action = next_action(r, bool(rec), bool(q))
+        if fail:
+            action = {"label": "Retry", "cmd": fail["cmd"], "args": fail["args"]}
+        pal = pick_palette(cfg, belt, r)
+        rows.append({
+            "slug": slug, "title": r["title"] or clean_title(r["name"], r["bpm"]),
+            "bpm": r["bpm"], "key": key_line(r["key"]), "status": r["status"],
+            "station": station, "state": state, "target": target,
+            "color": pal["bg"], "has_recording": bool(rec), "has_clip": has_clip,
+            "thumb": f"/thumb/{slug}.jpg?v={int(clip.stat().st_mtime)}" if has_clip else None,
+            "queue_date": q["date"] if q else "", "caption": q["caption"] if q else "",
+            "posted_at": q["posted_at"] if q else "", "action": action,
+            "error": fail["line"] if fail else "",
+        })
+    # Posted rows sink below the active ones; the rest keep belt order.
+    rows.sort(key=lambda x: x["state"] == "posted")
+    posted = sum(1 for r in belt if r["status"] == "posted")
+    nxt = next((q for q in queue if q["status"] == "queued"), None)
+    n = len(belt)
+    line = f"{n} loop{'' if n == 1 else 's'}, {posted} posted"
+    if nxt:
+        line += f", next: {nxt['slug']} on {nxt['date']}"
+    return {
+        "producer": cfg["producer"], "status_line": line, "next_slug": nxt["slug"] if nxt else "", "empty": not belt, "rows": rows,
+        "queue": queue, "stations": ["loop", "clip", "pack", "posted"],
+        "job": {k: job[k] for k in ("cmd", "args", "started") if k in job} if job else None,
+        "now": dt.datetime.now().timestamp(),
+        "today": (today or dt.date.today()).isoformat(),
+        "config": {"root": str(cfg["root"]), "renderer": cfg["renderer"],
+                   "palette_mode": cfg.get("palette_mode"), "catalog": cfg["db"].exists(),
+                   "inbox": str(P["inbox"])},
+    }
+
+
+def make_thumb(cfg: dict, clip: Path, out: Path) -> bool:
+    """One frame at t=3 s (t=0 for a shorter clip), 270 px wide, cached until the clip changes."""
+    if out.exists() and out.stat().st_mtime >= clip.stat().st_mtime:
+        return True
+    out.parent.mkdir(parents=True, exist_ok=True)
+    for t in ("3", "0"):
+        res = subprocess.run([cfg["ffmpeg"], "-v", "error", "-y", "-ss", t, "-i", str(clip),
+                              "-frames:v", "1", "-vf", "scale=270:-2", "-q:v", "3", str(out)],
+                             capture_output=True)
+        if res.returncode == 0 and out.exists() and out.stat().st_size:
+            return True
+    return False
+
+
+class _Routed:
+    """sys.stdout/sys.stderr stand-in: writes from a job thread go to that job's log."""
+    def __init__(self, orig):
+        self.orig = orig
+
+    def write(self, s):
+        sink = _JOB_THREADS.get(threading.get_ident())
+        if sink:
+            sink.feed(s)
+            return len(s)
+        return self.orig.write(s)
+
+    def flush(self):
+        self.orig.flush()
+
+    def __getattr__(self, name):
+        return getattr(self.orig, name)
+
+
+_JOB_THREADS: dict = {}
+
+
+class Worker:
+    """One job at a time, like a render queue. Keeps the log and the last failure per slug."""
+    def __init__(self, cfg: dict, config_path: str | None):
+        self.cfg, self.config_path = cfg, config_path
+        self.lock = threading.Lock()
+        self.log: list[str] = []
+        self.job: dict | None = None
+        self.failures: dict = {}
+        self._partial = ""
+
+    def feed(self, s: str) -> None:
+        with self.lock:
+            buf = self._partial + s
+            *lines, self._partial = buf.split("\n")
+            self.log.extend(l.rstrip() for l in lines if l.strip())
+
+    def start(self, cmd: str, args: list[str]) -> bool:
+        belt = read_csv(paths(self.cfg)["belt"], BELT_COLUMNS)
+        with self.lock:
+            if self.job:
+                return False
+            job = {"cmd": cmd, "args": args, "started": dt.datetime.now().timestamp()}
+            job["slugs"] = sorted(job_slugs(job, belt))
+            self.job = job
+        threading.Thread(target=self._run, args=(job,), daemon=True).start()
+        return True
+
+    def _run(self, job: dict) -> None:
+        _JOB_THREADS[threading.get_ident()] = self
+        self.feed(f"$ beatpack {' '.join([job['cmd'], *map(q, job['args'])])}\n")
+        mark = len(self.log)
+        argv = (["--config", self.config_path] if self.config_path else []) + [job["cmd"], *job["args"]]
+        try:
+            code = main(argv)
+        except SystemExit as e:
+            code = e.code if isinstance(e.code, int) else 1
+            if isinstance(e.code, str):
+                self.feed(e.code + "\n")
+        except Exception as e:  # keep the server up; the log says what broke
+            self.feed(f"error: {e}\n")
+            code = 1
+        finally:
+            _JOB_THREADS.pop(threading.get_ident(), None)
+        self.feed(f"exit {code} after {dt.datetime.now().timestamp() - job['started']:.0f} s\n")
+        with self.lock:
+            run_log = self.log[mark:]
+            failed = {}
+            for line in run_log:
+                m = re.match(r"fail (\S+): ?(.*)", line)
+                if m:
+                    failed[m.group(1)] = line
+            if code and not failed:
+                last = next((l for l in reversed(run_log[:-1]) if l.strip()), "failed")
+                failed = {s: last for s in job["slugs"]}
+            for s in job["slugs"]:
+                self.failures.pop(s, None)
+            retry_flags = [a for a in job["args"] if a == "--force"]
+            for s, line in failed.items():
+                args = [s, *retry_flags] if job["cmd"] in ("clips", "posted") else job["args"]
+                self.failures[s] = {"line": line, "cmd": job["cmd"], "args": args}
+            self.job = None
+
+    def lines_since(self, n: int) -> dict:
+        with self.lock:
+            return {"lines": self.log[n:], "next": len(self.log), "running": bool(self.job)}
+
+
+def make_handler(worker: Worker, port: int):
+    cfg = worker.cfg
+    hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, fmt, *a):  # quiet: the app has its own log
+            pass
+
+        def send(self, code: int, body: bytes, ctype: str, cache: bool = False) -> None:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "max-age=86400" if cache else "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def json(self, obj, code: int = 200) -> None:
+            self.send(code, json.dumps(obj).encode(), "application/json")
+
+        def guard(self) -> bool:
+            # Only this machine's browser, and (for writes) only same-origin fetches: a JSON
+            # content type or a custom header forces a CORS preflight that nothing answers.
+            if self.headers.get("Host") not in hosts:
+                self.json({"error": "bad host"}, 403)
+                return False
+            return True
+
+        def do_GET(self):
+            if not self.guard():
+                return
+            url = urllib.parse.urlparse(self.path)
+            p = url.path
+            if p in ("/", "/index.html"):
+                self.send(200, (REPO / "app" / "index.html").read_bytes(), "text/html; charset=utf-8")
+            elif p == "/api/state":
+                with worker.lock:
+                    job, fails = worker.job, dict(worker.failures)
+                self.json(build_state(cfg, job, fails))
+            elif p == "/api/log":
+                since = urllib.parse.parse_qs(url.query).get("since", ["0"])[0]
+                self.json(worker.lines_since(int(since) if since.isdigit() else 0))
+            elif m := re.fullmatch(r"/fonts/([\w.-]+\.ttf)", p):
+                f = REPO / "assets" / "fonts" / m.group(1)
+                if f.exists():
+                    self.send(200, f.read_bytes(), "font/ttf", cache=True)
+                else:
+                    self.json({"error": "no such font"}, 404)
+            elif m := re.fullmatch(r"/thumb/([a-z0-9-]+)\.jpg", p):
+                row = next((r for r in read_csv(paths(cfg)["belt"], BELT_COLUMNS)
+                            if r["slug"] == m.group(1)), None)
+                out = thumb_path(cfg, m.group(1))
+                if row and row["clip"] and Path(row["clip"]).exists() \
+                        and make_thumb(cfg, Path(row["clip"]), out):
+                    self.send(200, out.read_bytes(), "image/jpeg", cache=True)
+                else:
+                    self.json({"error": "no clip"}, 404)
+            else:
+                self.json({"error": "not found"}, 404)
+
+        def do_POST(self):
+            if not self.guard():
+                return
+            url = urllib.parse.urlparse(self.path)
+            length = int(self.headers.get("Content-Length") or 0)
+            if url.path == "/api/run":
+                if not self.headers.get("Content-Type", "").startswith("application/json"):
+                    return self.json({"error": "send JSON"}, 415)
+                try:
+                    body = json.loads(self.rfile.read(length) or b"{}")
+                except ValueError:
+                    return self.json({"error": "bad JSON"}, 400)
+                cmd, args = body.get("cmd"), body.get("args", [])
+                if cmd not in RUN_CMDS or not isinstance(args, list) \
+                        or not all(isinstance(a, str) for a in args):
+                    return self.json({"error": f"cmd must be one of {', '.join(RUN_CMDS)}"}, 400)
+                if not worker.start(cmd, args):
+                    return self.json({"error": "a job is already running"}, 409)
+                return self.json({"ok": True})
+            if url.path == "/api/inbox":
+                if self.headers.get("X-Beatpack") != "1":
+                    return self.json({"error": "missing X-Beatpack header"}, 403)
+                qs = urllib.parse.parse_qs(url.query)
+                slug = qs.get("slug", [""])[0]
+                ext = qs.get("ext", [""])[0].lower().lstrip(".")
+                belt = {r["slug"] for r in read_csv(paths(cfg)["belt"], BELT_COLUMNS)}
+                if slug not in belt or ext not in UPLOAD_EXTS:
+                    return self.json({"error": "unknown slug or not a .mov/.mp4/.m4v"}, 400)
+                inbox = paths(cfg)["inbox"]
+                if find_recording(inbox, slug):
+                    return self.json({"error": f"{slug} already has a recording in the inbox"}, 409)
+                inbox.mkdir(parents=True, exist_ok=True)
+                dest, tmp = inbox / f"{slug}.{ext}", inbox / f".{slug}.{ext}.part"
+                left = length
+                with tmp.open("wb") as f:
+                    while left > 0:
+                        chunk = self.rfile.read(min(left, 1 << 20))
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        left -= len(chunk)
+                if left or not length:
+                    tmp.unlink(missing_ok=True)
+                    return self.json({"error": "upload incomplete"}, 400)
+                os.replace(tmp, dest)
+                worker.feed(f"inbox {slug}: saved {dest} ({length / 1e6:.1f} MB)\n")
+                return self.json({"ok": True, "path": str(dest)})
+            self.json({"error": "not found"}, 404)
+
+    return Handler
+
+
+class _Server(http.server.ThreadingHTTPServer):
+    daemon_threads = True
+
+
+def port_in_use(port: int) -> bool:
+    """True if something already accepts on 127.0.0.1:port. SO_REUSEADDR (which http.server
+    sets) lets macOS bind a port another server holds as *:port, and the browser then
+    reaches either one at random, so a live listener is checked for first."""
+    try:
+        socket.create_connection(("127.0.0.1", port), timeout=0.3).close()
+        return True
+    except OSError:
+        return False
+
+
+def cmd_serve(cfg: dict, args) -> int:
+    worker = Worker(cfg, args.config)
+    sys.stdout, sys.stderr = _Routed(sys.stdout), _Routed(sys.stderr)
+    srv, port = None, args.port
+    for port in range(args.port, args.port + 10):
+        try:
+            if not port_in_use(port):
+                srv = _Server(("127.0.0.1", port), make_handler(worker, port))
+                break
+        except OSError:
+            pass
+        print(f"port {port} is taken; trying {port + 1}", flush=True)
+    if not srv:
+        sys.exit(f"no free port in {args.port}-{args.port + 9}")
+    url = f"http://127.0.0.1:{port}/"
+    print(f"serve {url}  (root {cfg['root']}; Ctrl-C to stop)", flush=True)
+    if not args.no_open:
+        subprocess.run(["open", url])
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    srv.server_close()
+    return 0
+
+
 # ---------------------------------------------------------------- main
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1200,6 +1570,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--out", help="output folder (default <root>/covers)")
 
     sub.add_parser("status", help="summarize belt.csv and queue.csv")
+
+    s = sub.add_parser("serve", help="open the belt as a local app on 127.0.0.1")
+    s.add_argument("--port", type=int, default=8787)
+    s.add_argument("--no-open", action="store_true", help="do not open the browser")
     return p
 
 
@@ -1209,7 +1583,8 @@ def main(argv: list[str] | None = None) -> int:
     DRY_RUN = args.dry_run
     cfg = load_config(args.config)
     handler = {"loops": cmd_loops, "clips": cmd_clips, "pack": cmd_pack,
-               "posted": cmd_posted, "cover": cmd_cover, "status": cmd_status}[args.cmd]
+               "posted": cmd_posted, "cover": cmd_cover, "status": cmd_status,
+               "serve": cmd_serve}[args.cmd]
     return handler(cfg, args)
 
 
