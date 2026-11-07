@@ -1,5 +1,16 @@
-BebasNeue-Regular.ttf and OFL.txt were fetched on 2026-11-06 from the
-Google Fonts repository: https://github.com/google/fonts/tree/main/ofl/bebasneue
-SIL Open Font License 1.1 (see OFL.txt). The older copy under public/bebas_neue
-(removed, in git history) shipped next to a "Try_BebasNeuePro.txt" note and is
-not used, in case it was a trial file.
+Fonts used by beatpack (title block on clips and covers).
+
+VCR_OSD_MONO_1.001.ttf
+  The pixel monospace of the owner's 2021 posts. Restored from this repo's own
+  history (public/VCR_OSD_MONO_1.001.ttf on master). Designer: MrManet.
+  LICENCE UNRESOLVED: see VCR_OSD_MONO.LICENSE-STATUS.txt. Settle it before
+  this repo is pushed anywhere public. To switch off: point "font" in
+  config.json at VT323-Regular.ttf and "font_family" at "VT323".
+
+VT323-Regular.ttf, OFL-VT323.txt
+  Free fallback (SIL Open Font License 1.1), fetched 2026-11-06 from
+  https://github.com/google/fonts/tree/main/ofl/vt323. Used automatically if
+  the VCR file is missing.
+
+Bebas Neue (OFL, Google Fonts) was used by an earlier draft of the clip
+template and removed when the 2021 look replaced it; it is in git history.
