@@ -115,7 +115,7 @@ class Captions(unittest.TestCase):
     def test_wraps(self):
         self.assertEqual(bp.caption_for(self.c, "1", "k", 2), bp.caption_for(self.c, "1", "k", 0))
         real = {**cfg(), "captions": str(Path(bp.__file__).parent / "captions.txt")}
-        self.assertEqual(bp.caption_for(real, "150", "a", 7), bp.caption_for(real, "150", "a", 0))
+        self.assertEqual(bp.caption_for(real, "150", "a", 5), bp.caption_for(real, "150", "a", 0))
 
     def test_hand_pick_lines_never_assigned(self):
         self.path.write_text("plain {bpm}\n? ctx {bpm}\ninvite {bpm}\n")
@@ -123,8 +123,8 @@ class Captions(unittest.TestCase):
         self.assertEqual(got, ["plain 9", "invite 9", "plain 9", "invite 9"])
         self.assertEqual(bp.hand_captions(self.c), ["ctx {bpm}"])
         real = {**cfg(), "captions": str(Path(bp.__file__).parent / "captions.txt")}
-        self.assertEqual(len(bp.load_captions(real)), 7)
-        self.assertEqual(len(bp.hand_captions(real)), 7)
+        self.assertEqual(len(bp.load_captions(real)), 5)
+        self.assertEqual(len(bp.hand_captions(real)), 9)
 
     def test_missing_file_falls_back(self):
         c = {**cfg(), "captions": str(Path(self.tmp.name) / "nope.txt")}
