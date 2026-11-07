@@ -1,0 +1,5 @@
+BebasNeue-Regular.ttf and OFL.txt were fetched on 2026-11-06 from the
+Google Fonts repository: https://github.com/google/fonts/tree/main/ofl/bebasneue
+SIL Open Font License 1.1 (see OFL.txt). The older copy under public/bebas_neue
+(removed, in git history) shipped next to a "Try_BebasNeuePro.txt" note and is
+not used, in case it was a trial file.
