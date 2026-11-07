@@ -170,9 +170,44 @@ class EffectCraftTemplate(unittest.TestCase):
         self.assertEqual(vals["SCOPE_START"], [40, 300])
         self.assertEqual(vals["INK_RGBA"], [0.102, 0.102, 0.102, 1])
         texts = [c["params"]["text"] for c in cmds if c["command"] == "layer.newText"]
-        self.assertEqual(texts.count("prod. barlitxs"), 2)       # printed twice
+        self.assertEqual(texts.count("prod. barlitxs"), 1)       # printed once by default
         self.assertIn("a minor", texts)
         self.assertNotIn("{{", json.dumps(cmds))
+        doubled = bp.fill_template(tpl, vals, {"audio_is_footage", "has_key", "doubled"})
+        texts = [c["params"]["text"] for c in doubled if c["command"] == "layer.newText"]
+        self.assertEqual(texts.count("prod. barlitxs"), 2)       # double_offset set
+        self.assertEqual(texts.count("a minor"), 2)
+        no_key = bp.fill_template(tpl, vals, {"audio_is_footage", "doubled"})
+        self.assertNotIn("a minor", [c["params"].get("text") for c in no_key])
+
+
+class TitleAndPaletteDefaults(unittest.TestCase):
+    def test_title_draws_once_unless_doubled(self):
+        c = cfg()
+        lines = bp.title_lines(c, "REGAL", "180", "A minor")
+        self.assertEqual(bp.title_draws(c, lines, "#E6E6E6").count("-draw"), 4)
+        c["title"]["double_offset"] = [0, 300]
+        self.assertEqual(bp.title_draws(c, lines, "#E6E6E6").count("-draw"), 8)
+
+    def test_right_scope_clears_title(self):
+        c = cfg()
+        x, _, w, _, vertical = bp.scope_box(c, "right")
+        self.assertTrue(vertical)
+        self.assertEqual(x + w // 2, 1062)
+        self.assertEqual(bp.scope_box(c, "left")[0] + w // 2, 40)
+
+    def test_fixed_mode_ignores_stored_hex(self):
+        c = cfg()
+        belt = [{"slug": "regal", "palette": "#332AE2"}]
+        p = bp.pick_palette(c, belt, belt[0])
+        self.assertEqual((p["name"], p["bg"], p["line"]), ("near-black", "#0B0B0B", "bottom"))
+        self.assertEqual(bp.pick_palette(c, belt, belt[0], "coral")["bg"], "#D4554A")
+        self.assertEqual(bp.pick_palette(c, belt, belt[0], "#123456")["bg"], "#123456")
+        belt[0]["palette"] = "salmon"                              # a named entry is kept
+        self.assertEqual(bp.pick_palette(c, belt, belt[0])["name"], "salmon")
+        c["palette_mode"] = "random2021"
+        belt[0]["palette"] = "#332AE2"                             # stored roll repeats
+        self.assertEqual(bp.pick_palette(c, belt, belt[0])["bg"], "#332AE2")
 
 
 if __name__ == "__main__":

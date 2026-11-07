@@ -48,11 +48,15 @@ DEFAULTS = {
     "effectcraft_bitrate_kbps": 10000,
     "title": {"right_x": 1020, "top_y": 280, "title_size": 90, "line_size": 55,
               "line_pitch": 58, "gap_after_title": 10, "ascent": 0.72,
-              "double_offset": [0, 300], "double_color": None},
-    # Canvas colour per clip. "random2021" rolls a tint the way the 2018-19 makeCover.js did
+              # [dx, dy] prints the block a second time, offset (the 2021 misregistered
+              # print); None (the default since 2026-11-06) prints it once.
+              "double_offset": None, "double_color": None},
+    # Canvas colour per clip. "fixed" (the default) uses palette_default for every clip.
+    # "random2021" rolls a tint the way the 2018-19 makeCover.js did
     # (two ranges: blues/purples, or reds/oranges/pinks), seeded by the slug so a re-render
     # gives the same colour. "rotate" walks the fixed list below instead.
-    "palette_mode": "random2021",
+    "palette_mode": "fixed",
+    "palette_default": "near-black",
     # One flat canvas per clip, rotated down the belt. line: where the 1 px scope runs.
     "palette": [
         {"name": "black", "bg": "#000000", "ink": "#E6E6E6", "line": "bottom"},
@@ -245,18 +249,24 @@ def palette_from_bg(bg: str, seed: str) -> dict:
 
 
 def pick_palette(cfg: dict, belt: list[dict], row: dict, name: str | None = None) -> dict:
-    """A named palette entry, else the row's stored one (a name or a #hex from a previous
-    roll), else a seeded 2021-style roll (palette_mode random2021) or rotate by position."""
+    """A forced name or #hex, else the row's stored named entry; then by palette_mode:
+    fixed -> palette_default (stored hexes from earlier rolls are ignored), random2021 ->
+    the stored hex or a seeded 2021-style roll, rotate -> by belt position."""
     pal = cfg["palette"]
+    mode = cfg.get("palette_mode", "rotate")
     want = name or row.get("palette")
     for p in pal:
         if p["name"] == want:
             return p
+    if mode == "fixed" and not name:
+        dflt = cfg.get("palette_default", "near-black")
+        return next((p for p in pal if p["name"] == dflt), pal[0] if pal else
+                    palette_from_bg("#0B0B0B", row.get("slug", "")))
     if want and re.fullmatch(r"#[0-9A-Fa-f]{6}", want):
         return palette_from_bg(want, row.get("slug", "") or want)  # stored hex repeats
     if name and re.fullmatch(r"#[0-9A-Fa-f]{6}", name):
         return palette_from_bg(name, row.get("slug", "") or name)
-    if cfg.get("palette_mode", "rotate") == "random2021":
+    if mode == "random2021":
         return palette_2021(row.get("slug", "") or str(belt.index(row)))
     return pal[belt.index(row) % len(pal)]
 
@@ -320,12 +330,18 @@ def footage_geometry(src_w: int, src_h: int) -> tuple[int, int, int]:
 VIZ_KINDS = ("osc", "bars", "strip")
 
 
+def right_scope_x(cfg: dict) -> int:
+    """Right-edge scope x: 22 px further out than the mirror of left_x (1062, not 1040), so
+    the line clears the title block's right edge at right_x 1020 instead of touching it."""
+    return FRAME_W - cfg["scope"]["left_x"] + 22
+
+
 def scope_box(cfg: dict, line: str) -> tuple[int, int, int, int, bool]:
     """(x, y, w, h, vertical) of the visualizer box for a palette's line edge."""
     sc, a = cfg["scope"], cfg["scope"]["amplitude_px"]
     if line in ("left", "right"):
         y0, y1 = sc["left_y"]
-        x = sc["left_x"] if line == "left" else FRAME_W - sc["left_x"]
+        x = sc["left_x"] if line == "left" else right_scope_x(cfg)
         return x - a // 2, y0, a, y1 - y0, True
     x0, x1 = sc["bottom_x"]
     return x0, sc["bottom_y"] - a // 2, x1 - x0, a, False
@@ -676,12 +692,16 @@ class ClipJob:
 
 def title_draws(cfg: dict, lines: list, ink: str, scale: float = 1.0) -> list[str]:
     """gm arguments for the doubled title block (gravity NorthEast, right edge at right_x).
-    Second copy: double_offset px right and down, same ink unless double_color is set."""
+    Second copy only if double_offset is set: that many px right and down, same ink unless
+    double_color is set."""
     t = cfg["title"]
-    dx, dy = t["double_offset"]
     right = (FRAME_W - t["right_x"]) * scale
     args = ["-gravity", "NorthEast", "-font", cfg["font"]]
-    for copy, (ox, oy, color) in enumerate(((0, 0, ink), (dx, dy, t["double_color"] or ink))):
+    copies = [(0, 0, ink)]
+    if t.get("double_offset"):
+        dx, dy = t["double_offset"]
+        copies.append((dx, dy, t["double_color"] or ink))
+    for ox, oy, color in copies:
         args += ["-fill", color]
         for text, size, top in lines:
             base = (top + t["ascent"] * size + oy) * scale   # gm draws at the baseline
@@ -755,7 +775,8 @@ PLACEHOLDER = re.compile(r"^\{\{([A-Z0-9_]+)\}\}$")
 
 def fill_template(lines: list[str], values: dict, flags: set[str]) -> list[dict]:
     """Template JSONL -> command list. A string that is exactly "{{NAME}}" becomes
-    values[NAME] with its JSON type; a line with "when": flag is kept only if flag is set."""
+    values[NAME] with its JSON type; a line with "when": flag (or a list of flags) is kept
+    only if every flag is set."""
     def sub(x):
         if isinstance(x, str):
             m = PLACEHOLDER.match(x)
@@ -776,7 +797,8 @@ def fill_template(lines: list[str], values: dict, flags: set[str]) -> list[dict]
             continue
         cmd = json.loads(line)
         when = cmd.pop("when", None)
-        if when and when not in flags:
+        need = [when] if isinstance(when, str) else (when or [])
+        if any(w not in flags for w in need):
             continue
         cmd.pop("note", None)
         out.append(sub(cmd))
@@ -805,7 +827,7 @@ def effectcraft_values(cfg: dict, job: ClipJob, src_w: int, src_h: int, duration
     vis_h = min(src_h, FOOT_BAND_H / (fg_scale / 100.0))      # source px kept by the mask
     mask = [0, round((src_h - vis_h) / 2.0, 2), src_w, round(vis_h, 2)]
     if side in ("left", "right"):
-        x = sc["left_x"] if side == "left" else FRAME_W - sc["left_x"]
+        x = sc["left_x"] if side == "left" else right_scope_x(cfg)
         start, end = [x, sc["left_y"][0]], [x, sc["left_y"][1]]
     else:
         start, end = [sc["bottom_x"][0], sc["bottom_y"]], [sc["bottom_x"][1], sc["bottom_y"]]
@@ -825,7 +847,7 @@ def effectcraft_values(cfg: dict, job: ClipJob, src_w: int, src_h: int, duration
     }
     # Text layers are positioned at the baseline (right-justified at right_x).
     lines = title_lines(cfg, job.title, job.bpm, job.key)
-    dx, dy = t["double_offset"]
+    dx, dy = t.get("double_offset") or (0, 0)
     for i in range(4):
         text, size, top = lines[i] if i < len(lines) else ("", t["line_size"], 0)
         base = round(top + t["ascent"] * size, 1)
@@ -855,6 +877,8 @@ def render_effectcraft(cfg: dict, job: ClipJob) -> None:
     flags = {"audio_is_footage"} if job.audio is None else set()
     if job.key:
         flags.add("has_key")
+    if cfg["title"].get("double_offset"):
+        flags.add("doubled")
     template = REPO / cfg.get("effectcraft_template", "templates/osc-9x16.jsonl")
     cmds = fill_template(template.read_text().splitlines(),
                          effectcraft_values(cfg, job, src_w, src_h, duration), flags)

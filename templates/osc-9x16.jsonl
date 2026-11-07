@@ -8,10 +8,10 @@
 {"capture": "audio", "note": "the recording itself when it carries audio, else the loop wav", "command": "layer.addItem", "params": {"item": "{{AUDIO_ITEM}}"}}
 {"when": "audio_is_footage", "command": "layer.setSwitch", "params": {"layers": ["#1"], "switch": "video", "value": false}}
 {"command": "layer.newSolid", "params": {"name": "Scope", "color": "#000000"}}
-{"command": "layer.newText", "params": {"text": "{{L1}}", "name": "TitleB", "position": "{{Q1}}", "justify": "right", "font": "{{FONT}}", "size": "{{S1}}", "fill": "{{INK2}}"}}
-{"command": "layer.newText", "params": {"text": "{{L2}}", "name": "ProdB", "position": "{{Q2}}", "justify": "right", "font": "{{FONT}}", "size": "{{S2}}", "fill": "{{INK2}}"}}
-{"command": "layer.newText", "params": {"text": "{{L3}}", "name": "BpmB", "position": "{{Q3}}", "justify": "right", "font": "{{FONT}}", "size": "{{S3}}", "fill": "{{INK2}}"}}
-{"when": "has_key", "command": "layer.newText", "params": {"text": "{{L4}}", "name": "KeyB", "position": "{{Q4}}", "justify": "right", "font": "{{FONT}}", "size": "{{S4}}", "fill": "{{INK2}}"}}
+{"when": "doubled", "command": "layer.newText", "params": {"text": "{{L1}}", "name": "TitleB", "position": "{{Q1}}", "justify": "right", "font": "{{FONT}}", "size": "{{S1}}", "fill": "{{INK2}}"}}
+{"when": "doubled", "command": "layer.newText", "params": {"text": "{{L2}}", "name": "ProdB", "position": "{{Q2}}", "justify": "right", "font": "{{FONT}}", "size": "{{S2}}", "fill": "{{INK2}}"}}
+{"when": "doubled", "command": "layer.newText", "params": {"text": "{{L3}}", "name": "BpmB", "position": "{{Q3}}", "justify": "right", "font": "{{FONT}}", "size": "{{S3}}", "fill": "{{INK2}}"}}
+{"when": ["has_key", "doubled"], "command": "layer.newText", "params": {"text": "{{L4}}", "name": "KeyB", "position": "{{Q4}}", "justify": "right", "font": "{{FONT}}", "size": "{{S4}}", "fill": "{{INK2}}"}}
 {"command": "layer.newText", "params": {"text": "{{L1}}", "name": "TitleA", "position": "{{P1}}", "justify": "right", "font": "{{FONT}}", "size": "{{S1}}", "fill": "{{INK}}"}}
 {"command": "layer.newText", "params": {"text": "{{L2}}", "name": "ProdA", "position": "{{P2}}", "justify": "right", "font": "{{FONT}}", "size": "{{S2}}", "fill": "{{INK}}"}}
 {"command": "layer.newText", "params": {"text": "{{L3}}", "name": "BpmA", "position": "{{P3}}", "justify": "right", "font": "{{FONT}}", "size": "{{S3}}", "fill": "{{INK}}"}}

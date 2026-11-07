@@ -28,10 +28,7 @@
     "line_pitch": 58,
     "gap_after_title": 10,
     "ascent": 0.72,
-    "double_offset": [
-      0,
-      300
-    ],
+    "double_offset": null,
     "double_color": null
   },
   "palette": [
@@ -104,5 +101,6 @@
     },
     "_display_options": "0 Digital, 1 Analog lines, 2 Analog dots"
   },
-  "palette_mode": "random2021"
+  "palette_mode": "fixed",
+  "palette_default": "near-black"
 }
