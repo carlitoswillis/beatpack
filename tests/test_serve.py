@@ -115,6 +115,15 @@ class BuildState(unittest.TestCase):
         self.assertEqual(w.failures["night"]["args"], ["night"])
         r = self.rows(bp.build_state(w.cfg, failures=w.failures))["night"]
         self.assertEqual((r["state"], r["target"]), ("failed", 3))
+        # The failure is on disk, so a new server (a restart) still shows it.
+        self.assertIn("night", json.loads((Path(self.tmp.name) / "state.json").read_text())["failures"])
+        w2 = bp.Worker(bp.load_config(str(conf)), str(conf))
+        self.assertEqual(w2.failures["night"]["args"], ["night"])
+
+    def test_unreadable_state_file_means_no_failures(self):
+        (Path(self.tmp.name) / "state.json").write_text("{not json")
+        self.assertEqual(bp.load_failures(Path(self.tmp.name) / "state.json"), {})
+        self.assertEqual(bp.load_failures(Path(self.tmp.name) / "nope.json"), {})
 
 
 class NextAction(unittest.TestCase):

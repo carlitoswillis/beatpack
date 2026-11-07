@@ -39,10 +39,10 @@ Without EffectCraft, pass `--renderer ffmpeg` or set `"renderer": "ffmpeg"` in `
 - **Render** runs `clips <slug>`, **Pack** runs `pack`, **Mark posted** runs `posted <slug>`. Each runs the same code as the CLI, one job at a time, in the background. Its output streams to the log drawer at the bottom of the window.
 - **Missing recording:** drop the .mov or .mp4 on the row (or use "choose a file"). It is copied to `inbox/<slug>.<ext>`. An existing recording is never overwritten.
 - **Rendering:** the station being worked on is the only amber thing on screen, with the elapsed time. Other buttons wait.
-- **Failed:** a crossed square, the word "failed", the line that explains it, and **Retry**. Failures are kept in memory until the next run of that row or a server restart.
+- **Failed:** a crossed square, the word "failed", the line that explains it, and **Retry**. The last failure per row is kept in `~/Music/loopbelt/state.json` until that row runs again, so it survives a server restart.
 - **Thumbnails:** one frame at 3 s per clip, made with ffmpeg on first view and cached in `~/Music/loopbelt/thumbs/`. A new render replaces it. A loop with no clip shows a flat block in its canvas colour.
 - Flags: `--port` (default 8787) and `--no-open`. If something already listens on the port, it moves to the next free one and prints the URL. Global flags still go first: `python3 beatpack.py --config scratch.json serve`.
-- It listens on 127.0.0.1 only and answers only requests addressed to that host. It posts, uploads and deletes nothing. Stop it with Ctrl-C, or `pkill -f "beatpack.py serve"`.
+- It listens on 127.0.0.1 only and answers only requests addressed to that host. It posts, uploads and deletes nothing. Stop it with Ctrl-C, or `pkill -f "beatpack.py.*serve"` (the `.*` also matches `-I` and `--config` before `serve`).
 
 Routes, for scripting: `GET /api/state`, `GET /api/log?since=N`, `POST /api/run` with JSON `{"cmd": "clips", "args": ["regal", "--force"]}` (loops, clips, pack, posted, cover), and `POST /api/inbox?slug=<slug>&ext=mov` with the file as the body and the header `X-Beatpack: 1`.
 
@@ -54,7 +54,7 @@ Routes, for scripting: `GET /api/state`, `GET /api/log?since=N`, `POST /api/run`
 | `clips` | `clips regal --palette coral` | Renders 1080x1920, 30 fps, H.264 yuv420p, AAC 48 kHz. `--still shot.png` is the fallback for loops with no recording: it is marked `still-fallback` in belt.csv, and the loop WAV is used for 8 bars. `--renderer effectcraft\|ffmpeg`, `--viz osc\|bars\|strip` (ffmpeg only; osc is the default and the only one in the EffectCraft template), `--force` re-renders. |
 | `pack` | `pack` | Zips loops with status clip or later, sets them to `packed`, and refreshes queue.csv. |
 | `posted` | `posted regal` | Marks the queue row posted with today's date (`--date` to override) and sets the belt row to `posted`. |
-| `cover` | `cover "regal" --palette coral --bpm 180 --key "A minor"` | Writes 3000x3000 and 1080x1080 PNGs to `covers/`: a flat canvas (or `--bg image`), the same doubled title block, and an optional `--logo assets/logo.png` (full-frame overlay; `--logo-corner` puts a small mark bottom right). |
+| `cover` | `cover "regal" --palette coral --bpm 180 --key "A minor"` | Writes 3000x3000 and 1080x1080 PNGs to `covers/`: a flat canvas (`palette_default`, near-black like the clips, unless `--palette`, `--color` or `--bg image`), the same single title block 60 px from the top and right, and an optional `--logo assets/logo.png` (full-frame overlay; `--logo-corner` puts a small mark bottom right). |
 | `status` | `status` | Counts by status, every belt row, every queue row, and the next post. |
 | `serve` | `serve --port 8787` | The belt as a local app in the browser (see above). |
 

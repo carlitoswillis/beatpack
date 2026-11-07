@@ -16,6 +16,7 @@ import math
 import os
 import re
 import shutil
+import signal
 import socket
 import sqlite3
 import subprocess
@@ -153,7 +154,7 @@ def paths(cfg: dict) -> dict:
     return {
         "root": root, "loops": root / "loops", "inbox": root / "inbox",
         "clips": root / "clips", "packs": root / "packs", "work": root / ".work",
-        "belt": root / "belt.csv", "queue": root / "queue.csv",
+        "belt": root / "belt.csv", "queue": root / "queue.csv", "state": root / "state.json",
     }
 
 
@@ -1102,7 +1103,8 @@ def cmd_cover(cfg: dict, args) -> int:
         out.mkdir(parents=True, exist_ok=True)
     name = slugify(args.title) or "cover"
     big, small = out / f"{name}-3000.png", out / f"{name}-1080.png"
-    pal = next((p for p in cfg["palette"] if p["name"] == args.palette), cfg["palette"][0])
+    want = args.palette or cfg.get("palette_default", "near-black")
+    pal = next((p for p in cfg["palette"] if p["name"] == want), cfg["palette"][0])
     ink = args.ink or pal["ink"]
     if args.bg:
         base = [cfg["gm"], "convert", os.path.expanduser(args.bg), "-resize", "3000x3000^",
@@ -1302,14 +1304,36 @@ class _Routed:
 _JOB_THREADS: dict = {}
 
 
+def load_failures(path: Path) -> dict:
+    """Last failure per slug from <root>/state.json; anything unreadable counts as none."""
+    try:
+        data = json.loads(path.read_text())
+        fails = data.get("failures", {})
+        return {k: v for k, v in fails.items()
+                if isinstance(v, dict) and {"line", "cmd", "args"} <= v.keys()}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def save_failures(path: Path, failures: dict) -> None:
+    """Rewrite state.json atomically; it only holds what the belt CSVs cannot."""
+    if not path.parent.is_dir():
+        return
+    tmp = path.with_name(".state.json.part")
+    tmp.write_text(json.dumps({"failures": failures}, indent=2) + "\n")
+    os.replace(tmp, path)
+
+
 class Worker:
-    """One job at a time, like a render queue. Keeps the log and the last failure per slug."""
+    """One job at a time, like a render queue. Keeps the log and the last failure per slug;
+    failures also live in <root>/state.json so a restart does not hide them."""
     def __init__(self, cfg: dict, config_path: str | None):
         self.cfg, self.config_path = cfg, config_path
         self.lock = threading.Lock()
         self.log: list[str] = []
         self.job: dict | None = None
-        self.failures: dict = {}
+        self.state_file = paths(cfg)["state"]
+        self.failures: dict = load_failures(self.state_file)
         self._partial = ""
 
     def feed(self, s: str) -> None:
@@ -1362,6 +1386,10 @@ class Worker:
             for s, line in failed.items():
                 args = [s, *retry_flags] if job["cmd"] in ("clips", "posted") else job["args"]
                 self.failures[s] = {"line": line, "cmd": job["cmd"], "args": args}
+            try:
+                save_failures(self.state_file, self.failures)
+            except OSError as e:
+                self.log.append(f"note: could not write {self.state_file}: {e}")
             self.job = None
 
     def lines_since(self, n: int) -> dict:
@@ -1495,6 +1523,10 @@ def port_in_use(port: int) -> bool:
         return False
 
 
+def _sigterm(*_):
+    raise KeyboardInterrupt
+
+
 def cmd_serve(cfg: dict, args) -> int:
     worker = Worker(cfg, args.config)
     sys.stdout, sys.stderr = _Routed(sys.stdout), _Routed(sys.stderr)
@@ -1509,6 +1541,8 @@ def cmd_serve(cfg: dict, args) -> int:
         print(f"port {port} is taken; trying {port + 1}", flush=True)
     if not srv:
         sys.exit(f"no free port in {args.port}-{args.port + 9}")
+    # pkill / kill send SIGTERM: leave through the same path as Ctrl-C so the socket closes.
+    signal.signal(signal.SIGTERM, _sigterm)
     url = f"http://127.0.0.1:{port}/"
     print(f"serve {url}  (root {cfg['root']}; Ctrl-C to stop)", flush=True)
     if not args.no_open:
@@ -1560,7 +1594,8 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("cover", help="3000x3000 and 1080x1080 cover PNGs")
     s.add_argument("title")
     s.add_argument("--bg", help="background image (default: flat --color)")
-    s.add_argument("--palette", default="black", help="palette entry name for canvas and ink")
+    s.add_argument("--palette", help="palette entry name for canvas and ink "
+                   "(default: palette_default, near-black, as the clips)")
     s.add_argument("--color", help="canvas colour (overrides --palette)")
     s.add_argument("--ink", help="text colour (overrides --palette)")
     s.add_argument("--bpm")
