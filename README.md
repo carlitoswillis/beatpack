@@ -6,12 +6,16 @@ It writes everything to `~/Music/loopbelt/` and tracks progress in two CSV files
 
 ## Install
 
+Prerequisites: macOS with Python 3, Homebrew, the ableton-library catalog already scanned (`library.db` below must exist; `loops` stops with "catalog not found" otherwise), and, for the default renderer, a Rust toolchain (`brew install rust`). ffmpeg must include the `aac_at` encoder (the Homebrew build on macOS does; check with `ffmpeg -encoders | grep aac_at`).
+
 ```sh
 brew install ffmpeg graphicsmagick
 # default renderer: EffectCraft CLI, built from source (one-time, ~6 min)
-#   https://github.com/storytold/effectcraft  commit bb2d2005cee68458a10ae2cc32d609d070b21744 (v0.21.0)
+#   git clone https://github.com/storytold/effectcraft ~/workspace/effectcraft/repo   (the path config.json expects)
+#   cd ~/workspace/effectcraft/repo && git checkout bb2d2005cee68458a10ae2cc32d609d070b21744   (v0.21.0)
+#   commit bb2d2005cee68458a10ae2cc32d609d070b21744 (v0.21.0)
 #   cargo build --release -p effectcraft-cli   -> ~/workspace/effectcraft/repo/target/release/effectcraft-cli
-python3 -m unittest            # offline tests, no tools needed
+python3 -m unittest            # run from the repo root; offline tests, no tools needed
 ```
 
 Without EffectCraft, pass `--renderer ffmpeg` or set `"renderer": "ffmpeg"` in `config.json`.
@@ -23,7 +27,7 @@ Without EffectCraft, pass `--renderer ffmpeg` or set `"renderer": "ffmpeg"` in `
 3. **Record the screen.** Open the set in Live and loop the same 8 bars. Press **Cmd-Shift-5**, choose "Record Selected Portion" around the Live window, and record 15-30 s. Save it as `~/Music/loopbelt/inbox/<slug>.mov`.
    - The recording must carry sound. Cmd-Shift-5 only records a microphone, so either pick a loopback device as the microphone in Options, or use OBS (free) with a "macOS Screen Capture" source and app audio.
    - If it has no sound, `clips` stops and says so. `--audio-from-loop` lays the loop WAV under the picture instead.
-4. **Render clips.** `python3 beatpack.py clips` writes `clips/<slug>.mp4` for every loop that has a recording. The recording is never cut and no audio is added to it: its own sound drives the scope and is only loudness-normalised to -14 LUFS.
+4. **Render clips.** `python3 beatpack.py clips` writes `clips/<slug>.mp4` for every loop that has a recording. A loop with no recording is skipped with a `wait` line (exit 0) unless you pass `--still`. The recording is never cut and no audio is added to it: its own sound drives the scope and is only loudness-normalised to -14 LUFS.
 5. **Pack and queue.** `python3 beatpack.py pack` zips every loop that has a clip into `packs/<date>-loops.zip` (with a plain README) and adds each new clip to `queue.csv`, one per day from tomorrow. Put the zip behind the bio link.
 6. **Post by hand, then mark it.** Each day, `python3 beatpack.py status` shows the next clip and its caption. Post it from the phone, then run `python3 beatpack.py posted <slug>`.
 
@@ -38,7 +42,9 @@ Without EffectCraft, pass `--renderer ffmpeg` or set `"renderer": "ffmpeg"` in `
 | `cover` | `cover "regal" --palette coral --bpm 180 --key "A minor"` | Writes 3000x3000 and 1080x1080 PNGs to `covers/`: a flat canvas (or `--bg image`), the same doubled title block, and an optional `--logo assets/logo.png` (full-frame overlay; `--logo-corner` puts a small mark bottom right). |
 | `status` | `status` | Counts by status, every belt row, every queue row, and the next post. |
 
-Global flags: `--config path.json` and `--dry-run`, which prints every ffmpeg, gm and EffectCraft command and writes nothing.
+Global flags: `--config path.json` and `--dry-run`, which prints every ffmpeg, gm and EffectCraft command and writes nothing. They go **before** the subcommand (`python3 beatpack.py --dry-run clips regal`); after it, argparse rejects them.
+
+Exit codes: a missing recording (with no `--still`) or an unknown slug prints a `wait`/`skip` line and exits 0, so check the output rather than the exit status. A render failure, a recording with no audio, a bad `--config` and `posted` on a slug that is not in `queue.csv` exit 1. `posted` only works after `pack` has queued the clip.
 
 ## The clip (the 2021 look)
 
@@ -46,7 +52,7 @@ The clip follows the owner's own 2021 posts (see `producer/research/16-the-2021-
 
 - **Canvas:** one flat colour per clip, rotated down the belt: black, coral, near-black, brick, maroon, salmon. No blur and no gradient.
 - **Footage:** the screen recording as a full-width panel in the middle band (y 760-1300). It is scaled to 1080 wide and a 16:9 source is centre-cropped to 540 px tall.
-- **Title block:** top right, right edge at x 1020, top at y 280. Four lines in VCR OSD Mono: the title in caps (90 px), `prod. barlitxs`, `NNN bpm`, and the key in lower case (55 px; the key line is dropped if unknown). The block is printed twice, the second copy 6 px right and 40 px down. Ink is `#1A1A1A` on coral, brick and salmon, and `#E6E6E6` on black, near-black and maroon.
+- **Title block:** top right, right edge at x 1020, top at y 280. Four lines in VCR OSD Mono: the title in caps (90 px), `prod. barlitxs`, `NNN bpm`, and the key in lower case (55 px; the key line is dropped if unknown). The block is printed twice, the second copy is offset by `title.double_offset` in `config.json` (default 0 px right, 300 px down). Ink is `#1A1A1A` on coral, brick and salmon, and `#E6E6E6` on black, near-black and maroon.
 - **Scope:** a 1 px oscilloscope in the ink colour, drawn from the clip's own audio. It runs vertically at x 40 from y 300 to 1600 on colour canvases, and horizontally at y 1560 from x 120 to 960 on dark canvases.
 
 Everything above lives in `config.json` (`palette`, `title`, `scope`, `viz_effectcraft`) and can be tuned without touching code. To keep a clip's title, edit the `title` column in belt.csv; `--palette NAME` forces a colour.
