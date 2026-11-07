@@ -84,6 +84,7 @@ DEFAULTS = {
         "_display_options": "0 Digital, 1 Analog lines, 2 Analog dots",
     },
     "caption": "{bpm} BPM{key_part}. Free loop in bio.",
+    "captions": "captions.txt",  # one caption per line, used in queue order; relative to beatpack.py
     "pack_readme": (
         "Free loops by {producer}.\n\n"
         "Use them in anything you make, paid or free. Credit \"prod. {producer}\" "
@@ -298,7 +299,31 @@ def slugify(name: str) -> str:
     return s[:48].strip("-")
 
 
-def caption_for(cfg: dict, bpm: str, key: str) -> str:
+def load_captions(cfg: dict) -> list[str]:
+    """Non-blank, non-# lines of the captions file; [] when it is missing or empty."""
+    p = Path(os.path.expanduser(str(cfg.get("captions") or "")))
+    if not str(cfg.get("captions") or ""):
+        return []
+    p = p if p.is_absolute() else REPO / p
+    if not p.is_file():
+        return []
+    return [ln.strip() for ln in p.read_text().splitlines()
+            if ln.strip() and not ln.lstrip().startswith("#")]
+
+
+def fill_caption(line: str, bpm: str, key: str) -> str:
+    if key:
+        return line.replace("{bpm}", bpm).replace("{key}", key)
+    s = line.replace("{bpm}", bpm).replace("{key}", "")
+    s = re.sub(r"\s+([,.])", r"\1", s)       # space before punctuation
+    s = re.sub(r",\s*(?=[.,]|$)", "", s)      # dangling comma
+    return re.sub(r"\s{2,}", " ", s).strip()
+
+
+def caption_for(cfg: dict, bpm: str, key: str, index: int | None = None) -> str:
+    lines = load_captions(cfg) if index is not None else []
+    if lines:
+        return fill_caption(lines[index % len(lines)], bpm, key)
     return cfg["caption"].format(bpm=bpm, key=key, key_part=f", {key}" if key else "",
                                  producer=cfg["producer"])
 
@@ -1033,6 +1058,8 @@ def cmd_clips(cfg: dict, args) -> int:
 # ---------------------------------------------------------------- pack / queue
 
 def cmd_pack(cfg: dict, args) -> int:
+    if getattr(args, "captions", None):
+        cfg["captions"] = args.captions
     P = paths(cfg)
     belt = read_csv(P["belt"], BELT_COLUMNS)
     ready = [r for r in belt if status_at_least(r["status"], "clip")]
@@ -1064,11 +1091,16 @@ def cmd_pack(cfg: dict, args) -> int:
 def refresh_queue(cfg: dict, P: dict, belt: list[dict], today: dt.date) -> list[dict]:
     queue = read_csv(P["queue"], QUEUE_COLUMNS)
     have = {r["slug"] for r in queue}
+    belt_by = {r["slug"]: r for r in belt}
+    for i, q in enumerate(queue):  # upgrade untouched generic captions on queued rows
+        b = belt_by.get(q["slug"])
+        if b and q["status"] == "queued" and q["caption"] == caption_for(cfg, b["bpm"], b["key"]):
+            q["caption"] = caption_for(cfg, b["bpm"], b["key"], i)
     new = [r for r in belt if r["clip"] and r["slug"] not in have
            and status_at_least(r["status"], "clip")]
     for d, r in zip(next_dates([x["date"] for x in queue], len(new), today), new):
         queue.append({"date": d, "slug": r["slug"], "clip": r["clip"],
-                      "caption": caption_for(cfg, r["bpm"], r["key"]),
+                      "caption": caption_for(cfg, r["bpm"], r["key"], len(queue)),
                       "status": "queued", "posted_at": ""})
     write_csv(P["queue"], QUEUE_COLUMNS, queue)
     print(f"queue {len(new)} added, {sum(1 for x in queue if x['status'] == 'queued')} queued "
@@ -1585,7 +1617,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="visualizer: osc (oscilloscope, default), bars (spectrum), strip (static)")
     s.add_argument("--force", action="store_true", help="re-render clips that exist")
 
-    sub.add_parser("pack", help="zip loops with clips and refresh queue.csv")
+    s = sub.add_parser("pack", help="zip loops with clips and refresh queue.csv")
+    s.add_argument("--captions", help="captions file, one per line (default from config: captions.txt)")
 
     s = sub.add_parser("posted", help="mark a queued clip as posted")
     s.add_argument("slug")

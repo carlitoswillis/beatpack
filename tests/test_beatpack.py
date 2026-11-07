@@ -95,6 +95,34 @@ class Csv(unittest.TestCase):
         self.assertEqual(bp.caption_for(cfg(), "180", ""), "180 BPM. Free loop in bio.")
 
 
+class Captions(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = Path(self.tmp.name) / "c.txt"
+        self.path.write_text("# note\n\nfirst. {bpm} bpm {key}. free\nsecond, {key}. {bpm} bpm\n")
+        self.c = {**cfg(), "captions": str(self.path)}
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_with_key(self):
+        self.assertEqual(bp.caption_for(self.c, "150", "e minor", 0), "first. 150 bpm e minor. free")
+
+    def test_without_key(self):
+        self.assertEqual(bp.caption_for(self.c, "150", "", 0), "first. 150 bpm . free".replace(" .", "."))
+        self.assertEqual(bp.caption_for(self.c, "150", "", 1), "second. 150 bpm")
+
+    def test_wraps(self):
+        self.assertEqual(bp.caption_for(self.c, "1", "k", 2), bp.caption_for(self.c, "1", "k", 0))
+        real = {**cfg(), "captions": str(Path(bp.__file__).parent / "captions.txt")}
+        self.assertEqual(len(bp.load_captions(real)), 14)
+        self.assertEqual(bp.caption_for(real, "150", "a", 14), bp.caption_for(real, "150", "a", 0))
+
+    def test_missing_file_falls_back(self):
+        c = {**cfg(), "captions": str(Path(self.tmp.name) / "nope.txt")}
+        self.assertEqual(bp.caption_for(c, "180", "A minor", 3), "180 BPM, A minor. Free loop in bio.")
+
+
 class Filtergraph(unittest.TestCase):
     def test_footage_band(self):
         self.assertEqual(bp.footage_geometry(1920, 1080), (608, 540, 900))
