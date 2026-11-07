@@ -1042,10 +1042,12 @@ def cmd_cover(cfg: dict, args) -> int:
                 "-gravity", "center", "-extent", "3000x3000"]
     else:
         base = [cfg["gm"], "convert", "-size", "3000x3000", f"xc:{args.color or pal['bg']}"]
-    lines = title_lines(cfg, args.title.upper(), args.bpm or "", args.key or "")
+    # Square: no Reels top zone, so the block sits 60 px (at 1080) from the top edge.
+    sq = {**cfg, "title": {**cfg["title"], "top_y": 60}}
+    lines = title_lines(sq, args.title.upper(), args.bpm or "", args.key or "")
     if not args.bpm:
         lines = [l for l in lines if not l[0].endswith(" bpm")]
-    run(base + [*title_draws(cfg, lines, ink, scale=3000 / FRAME_W), str(big)])
+    run(base + [*title_draws(sq, lines, ink, scale=3000 / FRAME_W), str(big)])
     if args.logo:
         logo = paths(cfg)["work"] / "cover-logo.png"
         if not DRY_RUN:
