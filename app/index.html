@@ -46,6 +46,10 @@ main { padding: 0 var(--edge); max-width: 1240px; }
 .row { padding: calc(4 * var(--u)) 0; }
 .row + .row { border-top: 1px solid #141414; }
 .row.st-posted { opacity: .5; }
+.row.st-held { opacity: .42; }
+.row.st-held .thumb { filter: grayscale(1); }
+.why { grid-column: 1 / -1; margin-top: calc(2 * var(--u)); font: var(--t-body)/1.35 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.why .n { color: var(--ink); }
 .row.drag { outline: 1px dashed var(--ink); outline-offset: -1px; }
 
 .thumb, .block { outline: 1px solid var(--line); outline-offset: -1px; }
@@ -180,6 +184,8 @@ function stationHtml(r, i) {
     note = `${i === 1 ? "rendering" : "running"} <span class="n elapsed">${elapsed()}</span>`;
   } else if (r.state === "failed" && i === r.target) {
     cls += " fail"; note = "failed";
+  } else if (r.state === "held") {
+    if (i === reached) cls += " here";
   } else if (i === reached) {
     cls += " here";
     if (i === 0 && !r.has_recording && r.status === "loop") note = "waiting for the screen recording";
@@ -197,6 +203,7 @@ function actionHtml(r) {
   // Only the next clip to post gets the filled button; later posts wait their turn.
   const later = r.action && r.action.cmd === "posted" && S.next_slug && S.next_slug !== r.slug;
   if (r.action) out += `<button class="btn${later ? " quiet" : ""}" data-run='${esc(JSON.stringify(r.action))}' ${busy ? "disabled" : ""}>${esc(r.action.label)}</button>`;
+  if (r.state === "held") return `<div class="cap">unhold ${esc(r.slug)} to put it back</div>`;
   if (r.status === "loop" && !r.has_recording)
     out += `<div class="drop">Drop the screen recording here, or <label>choose a file<input type="file" accept=".mov,.mp4,.m4v,video/*" data-slug="${esc(r.slug)}"></label>. It is saved in the inbox as ${esc(r.slug)}.</div>`;
   if (r.state === "queued" && r.caption) out += `<button class="btn link" data-copy="${esc(r.caption)}">Copy caption</button>`;
@@ -213,7 +220,8 @@ function rowHtml(r) {
       <div class="l">${esc(r.bpm)} bpm</div>
       ${r.key ? `<div class="l">${esc(r.key)}</div>` : `<div class="l dim">no key</div>`}</div>
     <div class="track">${[0, 1, 2, 3].map(i => stationHtml(r, i)).join("")}
-      ${r.state === "failed" && r.error ? `<div class="err">${esc(r.error)}</div>` : ""}</div>
+      ${r.state === "failed" && r.error ? `<div class="err">${esc(r.error)}</div>` : ""}
+      ${r.state === "held" ? `<div class="why">on hold${r.hold_reason ? `: <span class="n">${esc(r.hold_reason)}</span>` : ""}</div>` : ""}</div>
     <div class="act">${actionHtml(r)}</div>
   </section>`;
 }

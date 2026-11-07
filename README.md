@@ -41,6 +41,7 @@ Without EffectCraft, pass `--renderer ffmpeg` or set `"renderer": "ffmpeg"` in `
 - **Missing recording:** drop the .mov or .mp4 on the row (or use "choose a file"). It is copied to `inbox/<slug>.<ext>`. An existing recording is never overwritten.
 - **Rendering:** the station being worked on is the only amber thing on screen, with the elapsed time. Other buttons wait.
 - **Failed:** a crossed square, the word "failed", the line that explains it, and **Retry**. The last failure per row is kept in `~/Music/loopbelt/state.json` until that row runs again, so it survives a server restart.
+- **Held rows** (`hold`) sink below the active ones, dimmed, with the reason under the track and no button; `unhold <slug>` from the CLI puts them back.
 - **Thumbnails:** one frame at 3 s per clip, made with ffmpeg on first view and cached in `~/Music/loopbelt/thumbs/`. A new render replaces it. A loop with no clip shows a flat block in its canvas colour.
 - Flags: `--port` (default 8787) and `--no-open`. If something already listens on the port, it moves to the next free one and prints the URL. Global flags still go first: `python3 beatpack.py --config scratch.json serve`.
 - It listens on 127.0.0.1 only and answers only requests addressed to that host. It posts, uploads and deletes nothing. Stop it with Ctrl-C, or `pkill -f "beatpack.py.*serve"` (the `.*` also matches `-I` and `--config` before `serve`).

@@ -1348,7 +1348,7 @@ def cmd_status(cfg: dict, args) -> int:
     print("      " + "  ".join(f"{s} {n}" for s, n in counts.items()))
     dim = sys.stdout.isatty()
     for r in belt:
-        line = (f"      {r['status']:<7} {r['slug']:<26} {r['bpm']:>5} BPM  {r['key'] or '-':<9} "
+        line = (f"      {r['status']:<7} {r['slug']:<27} {r['bpm']:>5} BPM  {r['key'] or '-':<9} "
                 f"{r['clip_kind'] or ''}")
         if r["status"] == HOLD:
             line = line.rstrip() + f"  ({r['hold_reason'] or 'held'})"
