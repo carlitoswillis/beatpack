@@ -1085,9 +1085,8 @@ def render_ffmpeg(cfg: dict, job: ClipJob) -> None:
         cmd += ["-t", f"{job.duration:.3f}"]
     cmd += ["-r", "30", "-c:v", "libx264", "-preset", "medium", "-crf", "20",
             "-pix_fmt", "yuv420p", "-profile:v", "high", "-movflags", "+faststart",
-            "-c:a", cfg["audio_codec"], "-b:a", cfg["audio_bitrate"], "-ar", "48000",
-            str(job.out)]
-    run(cmd)
+            "-c:a", cfg["audio_codec"], "-b:a", cfg["audio_bitrate"], "-ar", "48000"]
+    run(cmd + [str(job.out)])    # job.out is cmd_clips' .part.mp4, replaced only on success
 
 
 # ---------------------------------------------------------------- effectcraft
@@ -1253,9 +1252,17 @@ def finish_loudness(cfg: dict, raw: Path, out: Path) -> None:
         os.replace(raw, out)
         print(f"      loudness {measured and measured.get('input_i')} LUFS, kept as rendered")
         return
-    run([cfg["ffmpeg"], "-v", "error", "-y", "-i", str(raw), "-map", "0:v", "-map", "0:a",
-         "-c:v", "copy", "-af", f"{ln},aresample=48000", "-c:a", cfg["audio_codec"],
-         "-b:a", cfg["audio_bitrate"], "-ar", "48000", "-movflags", "+faststart", str(out)])
+    tmp = out.with_name(out.stem + ".remux.mp4")
+    try:
+        run([cfg["ffmpeg"], "-v", "error", "-y", "-i", str(raw), "-map", "0:v", "-map", "0:a",
+             "-c:v", "copy", "-af", f"{ln},aresample=48000", "-c:a", cfg["audio_codec"],
+             "-b:a", cfg["audio_bitrate"], "-ar", "48000", "-movflags", "+faststart", str(tmp)])
+        if tmp.stat().st_size == 0:
+            raise RuntimeError("loudness remux wrote an empty file")
+        os.replace(tmp, out)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     raw.unlink()
     print(f"      loudness {measured.get('input_i')} -> {target} LUFS (remuxed, video copied)")
 
@@ -1310,6 +1317,27 @@ def canvas_audio(cfg: dict, wav: Path, loop_s: float, out: Path) -> tuple[Path, 
     return out, probe(cfg, out)["duration"] or loop_s * n
 
 
+def drop_partial(part: Path) -> None:
+    """Remove a half-written render and the effectcraft intermediate next to it."""
+    if DRY_RUN:
+        return
+    for f in (part, part.with_name(part.stem + ".ec-raw.mp4"),
+              part.with_name(part.stem + ".remux.mp4")):
+        f.unlink(missing_ok=True)
+
+
+def verify_render(cfg: dict, path: Path) -> None:
+    """A render counts only if ffmpeg exited 0 (run() raised otherwise), the file is
+    non-empty and ffprobe can read a video stream with a duration from it."""
+    if DRY_RUN:
+        return
+    if not path.exists() or path.stat().st_size == 0:
+        raise RuntimeError(f"render produced no output at {path.name}")
+    info = probe(cfg, path)
+    if not info["duration"] or not info["width"]:
+        raise RuntimeError(f"render at {path.name} is not a playable video")
+
+
 def cmd_clips(cfg: dict, args) -> int:
     P = paths(cfg)
     belt = read_csv(P["belt"], BELT_COLUMNS)
@@ -1338,16 +1366,17 @@ def cmd_clips(cfg: dict, args) -> int:
         rec = find_recording(P["inbox"], slug)
         text_png = P["work"] / f"{slug}-text.png"
         out = P["clips"] / f"{slug}.mp4"
+        part = out.with_name(f"{slug}.part.mp4")   # renders land here, never on `out`
         if rec:
             info = probe(cfg, rec)
             if info["has_audio"]:
-                job = ClipJob(slug, rec, False, None, None, text_png, out, r["bpm"], r["key"])
+                job = ClipJob(slug, rec, False, None, None, text_png, part, r["bpm"], r["key"])
                 kind = "recording"
             elif args.audio_from_loop:
                 # The recording has no sound (Cmd-Shift-5 records mic only). Lay the loop
                 # under it, bounded to the recording's own length; the video is not cut.
                 dur = min(info["duration"], float(r["duration_s"] or 0) or info["duration"])
-                job = ClipJob(slug, rec, False, Path(r["wav"]), dur, text_png, out,
+                job = ClipJob(slug, rec, False, Path(r["wav"]), dur, text_png, part,
                               r["bpm"], r["key"])
                 kind = "recording+loop-audio"
             else:
@@ -1357,7 +1386,7 @@ def cmd_clips(cfg: dict, args) -> int:
                 continue
         elif args.still:
             job = ClipJob(slug, Path(args.still), True, Path(r["wav"]), float(r["duration_s"]),
-                          text_png, out, r["bpm"], r["key"])
+                          text_png, part, r["bpm"], r["key"])
             kind = "still-fallback"
             print(f"FALLBACK {slug}: no recording in inbox, using still {args.still}")
         else:
@@ -1369,7 +1398,7 @@ def cmd_clips(cfg: dict, args) -> int:
                 print(f"fail {slug}: cannot prepare canvas audio: {e}", file=sys.stderr)
                 failures += 1
                 continue
-            job = ClipJob(slug, None, False, wav, dur, text_png, out, r["bpm"], r["key"],
+            job = ClipJob(slug, None, False, wav, dur, text_png, part, r["bpm"], r["key"],
                           canvas=True)
             kind = "canvas"
             print(f"CANVAS {slug}: no recording in inbox, rendering title + scope only "
@@ -1378,13 +1407,19 @@ def cmd_clips(cfg: dict, args) -> int:
         job.title = r.get("title") or clean_title(r["name"], r["bpm"])
         job.palette, job.viz = pal, args.viz
         try:
+            drop_partial(part)
             if renderer_name == "ffmpeg":
                 make_text_png(cfg, text_png, job)
             renderer(cfg, job)
+            verify_render(cfg, part)
         except (RuntimeError, NotImplementedError) as e:
+            drop_partial(part)       # the row and any earlier clip stay as they were
             print(f"fail {slug}: {e}", file=sys.stderr)
             failures += 1
             continue
+        except BaseException:
+            drop_partial(part)
+            raise
         fields = dict(clip=str(out), clip_kind=f"{kind}:{renderer_name}", palette=pal["name"],
                       title=job.title, updated=now())
         with locked(P):   # the render took minutes: re-read, apply only this row's transition
@@ -1395,9 +1430,12 @@ def cmd_clips(cfg: dict, args) -> int:
                     raise IllegalTransition("is no longer on the belt")
                 transition(cur, "render", fields=fields)
             except IllegalTransition as e:
+                drop_partial(part)
                 print(f"skip {slug}: {e}; render result not recorded", file=sys.stderr)
                 failures += 1
                 continue
+            if not DRY_RUN:
+                os.replace(part, out)
             write_csv(P["belt"], BELT_COLUMNS, fresh)
         r.update(cur)   # keep the palette-rotation snapshot current
         print(f"clip  {slug} [{kind}, {renderer_name}, {pal['name']}] -> {out}")

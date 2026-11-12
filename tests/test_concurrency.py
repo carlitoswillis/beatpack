@@ -29,13 +29,16 @@ class Base(unittest.TestCase):
         self.cfg = cfg()
         self.cfg.update(root=self.root, captions=str(self.root / "none.txt"))
         self.P = bp.paths(self.cfg)
-        self.saved = (bp.make_text_png, bp.canvas_audio, dict(bp.RENDERERS))
+        self.saved = (bp.make_text_png, bp.canvas_audio, dict(bp.RENDERERS), bp.probe)
         bp.make_text_png = lambda c, o, j: None
         bp.canvas_audio = lambda c, w, d, out: (out, 2.0)
+        bp.probe = lambda c, p: {"duration": 2.0, "width": 1080, "height": 1920,
+                                 "has_audio": True, "sample_rate": 48000}
         self.addCleanup(self.restore)
 
     def restore(self):
         bp.make_text_png, bp.canvas_audio = self.saved[:2]
+        bp.probe = self.saved[3]
         bp.RENDERERS.clear()
         bp.RENDERERS.update(self.saved[2])
         self.tmp.cleanup()
