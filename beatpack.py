@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import argparse
 import array
+import contextlib
 import csv
 import datetime as dt
+import fcntl
 import http.server
 import json
 import math
@@ -513,6 +515,34 @@ class IllegalTransition(Exception):
     pass
 
 
+def recut_transition(row: dict | None, reset: bool) -> str:
+    """Which cut transition applies to this set's existing row. --force alone re-imports
+    only rows still in loop; rewinding a clip or packed row needs reset=True (the
+    --reset-progress flag); posted rows are never cut again."""
+    if row is None:
+        return "cut"
+    state = row["status"]
+    far = row["held_from"] if state == HOLD else state
+    if far == "posted":
+        raise IllegalTransition("is posted and is never re-cut")
+    if far in ("clip", "packed"):
+        if not reset:
+            raise IllegalTransition(f"is {far}; --force alone keeps it, "
+                                    "--reset-progress rewinds it to loop")
+        return "reset_recut"
+    return "recut"
+
+
+def reconcile_queue(P: dict, slug: str) -> None:
+    """A rewound row loses its queued queue.csv row (its clip reference is stale); a
+    posted queue row is history and stays."""
+    queue = read_csv(P["queue"], QUEUE_COLUMNS)
+    kept = [q for q in queue if not (q["slug"] == slug and q["status"] == "queued")]
+    if len(kept) != len(queue):
+        write_csv(P["queue"], QUEUE_COLUMNS, kept)
+        print(f"queue {slug} dropped from {P['queue']}")
+
+
 def transition(row: dict | None, name: str, **kw) -> dict:
     """Apply transition `name` to `row` (None for a new row) and return the row.
     cut/recut/reset_recut take new=<fresh cut_loop row>; hold takes reason=; unhold takes
@@ -589,6 +619,34 @@ def write_csv(path: Path, columns: list[str], rows: list[dict]) -> None:
         for r in rows:
             w.writerow({c: r.get(c, "") for c in columns})
     os.replace(tmp, path)
+
+
+_LOCK_STATE = threading.local()
+_LOCK_THREADS = threading.RLock()
+
+
+@contextlib.contextmanager
+def locked(P: dict):
+    """Exclusive lock on belt.csv and queue.csv together (flock on <root>/.belt.lock, plus a
+    thread lock because the server runs jobs in threads). Re-entrant. Hold it only for
+    read, change, write: never across a render."""
+    if DRY_RUN:
+        yield
+        return
+    with _LOCK_THREADS:
+        depth = getattr(_LOCK_STATE, "depth", 0)
+        if depth == 0:
+            P["root"].mkdir(parents=True, exist_ok=True)
+            _LOCK_STATE.fd = (P["root"] / ".belt.lock").open("a")
+            fcntl.flock(_LOCK_STATE.fd, fcntl.LOCK_EX)
+        _LOCK_STATE.depth = depth + 1
+        try:
+            yield
+        finally:
+            _LOCK_STATE.depth -= 1
+            if _LOCK_STATE.depth == 0:
+                fcntl.flock(_LOCK_STATE.fd, fcntl.LOCK_UN)
+                _LOCK_STATE.fd.close()
 
 
 def upsert(rows: list[dict], row: dict, key: str = "slug") -> None:
@@ -809,6 +867,12 @@ def cmd_loops(cfg: dict, args) -> int:
         if existing and not args.force:
             print(f"skip {sid}: already on the belt as '{existing['slug']}' (use --force)")
             continue
+        if existing:
+            try:
+                recut_transition(existing, args.reset_progress)
+            except IllegalTransition as e:
+                print(f"skip {sid}: '{existing['slug']}' {e}")
+                continue
         slug = existing["slug"] if existing else unique_slug(slugify(cs.name) or f"set-{sid}", sid, belt)
         src = Path(args.audio or cs.preview)
         keep_start = None
@@ -829,18 +893,30 @@ def cmd_loops(cfg: dict, args) -> int:
             failures += 1
             continue
         tp = row.pop("_tp", "")
-        try:
-            if existing:
-                transition(existing, "recut", new=row)
-                row = existing
-            else:
-                row = transition(None, "cut", new=row)
-                belt.append(row)
-        except IllegalTransition as e:
-            print(f"skip {slug}: {e} (use --force only on rows still in loop)", file=sys.stderr)
-            failures += 1
-            continue
-        write_csv(P["belt"], BELT_COLUMNS, belt)
+        with locked(P):   # the cut took minutes: re-read, and apply only this transition
+            belt = read_csv(P["belt"], BELT_COLUMNS)
+            current = next((r for r in belt if r["set_id"] == str(sid)), None)
+            try:
+                if current is None and any(r["slug"] == slug for r in belt):
+                    raise IllegalTransition(f"slug {slug} was taken while this was cutting")
+                if (current is None) != (existing is None):
+                    raise IllegalTransition("the belt changed while this was cutting")
+                if current and not args.force:
+                    raise IllegalTransition("already on the belt")
+                name = recut_transition(current, args.reset_progress)
+                if current is None:
+                    row = transition(None, name, new=row)
+                    belt.append(row)
+                else:
+                    transition(current, name, new=row)
+                    row = current
+                    if name == "reset_recut":
+                        reconcile_queue(P, slug)
+            except IllegalTransition as e:
+                print(f"skip {sid} ({slug}): {e}", file=sys.stderr)
+                failures += 1
+                continue
+            write_csv(P["belt"], BELT_COLUMNS, belt)
         print(f"loop  {slug}: {row['bpm']} BPM {row['key'] or '(no key)'}, "
               f"{bars} bars from {row['start_s']} s{tp} -> {row['wav']}")
     return 1 if failures else 0
@@ -1309,15 +1385,21 @@ def cmd_clips(cfg: dict, args) -> int:
             print(f"fail {slug}: {e}", file=sys.stderr)
             failures += 1
             continue
-        try:
-            transition(r, "render", fields=dict(
-                clip=str(out), clip_kind=f"{kind}:{renderer_name}", palette=pal["name"],
-                title=job.title, updated=now()))
-        except IllegalTransition as e:
-            print(f"skip {slug}: {e}", file=sys.stderr)
-            failures += 1
-            continue
-        write_csv(P["belt"], BELT_COLUMNS, belt)
+        fields = dict(clip=str(out), clip_kind=f"{kind}:{renderer_name}", palette=pal["name"],
+                      title=job.title, updated=now())
+        with locked(P):   # the render took minutes: re-read, apply only this row's transition
+            fresh = read_csv(P["belt"], BELT_COLUMNS)
+            cur = next((x for x in fresh if x["slug"] == slug), None)
+            try:
+                if cur is None:
+                    raise IllegalTransition("is no longer on the belt")
+                transition(cur, "render", fields=fields)
+            except IllegalTransition as e:
+                print(f"skip {slug}: {e}; render result not recorded", file=sys.stderr)
+                failures += 1
+                continue
+            write_csv(P["belt"], BELT_COLUMNS, fresh)
+        r.update(cur)   # keep the palette-rotation snapshot current
         print(f"clip  {slug} [{kind}, {renderer_name}, {pal['name']}] -> {out}")
     return 1 if failures else 0
 
@@ -1330,6 +1412,7 @@ def cmd_pack(cfg: dict, args) -> int:
     P = paths(cfg)
     belt = read_csv(P["belt"], BELT_COLUMNS)
     ready = [r for r in belt if status_at_least(r["status"], "clip")]
+    zipped = {r["slug"] for r in ready}
     if not ready:
         print("nothing to pack: no loop has a clip yet")
         return 0
@@ -1347,11 +1430,14 @@ def cmd_pack(cfg: dict, args) -> int:
                     if f and Path(f).exists():
                         z.write(f, f"{top}/{r['slug']}/{Path(f).name}")
         os.replace(tmp, zpath)
-    for r in ready:
-        if r["status"] == "clip":
-            transition(r, "pack")
-    write_csv(P["belt"], BELT_COLUMNS, belt)
-    refresh_queue(cfg, P, belt, today)
+    with locked(P):   # apply only this pack's transitions to the belt as it is now
+        belt = read_csv(P["belt"], BELT_COLUMNS)
+        for r in belt:
+            if r["slug"] in zipped and r["status"] == "clip":
+                transition(r, "pack")
+        write_csv(P["belt"], BELT_COLUMNS, belt)
+        # a row that reached clip after the zip was cut is not packed, so not queued yet
+        refresh_queue(cfg, P, [r for r in belt if r["status"] != "clip"], today)
     for item in getattr(args, "caption", None) or []:
         slug, _, text = item.partition("=")
         if not text:
@@ -1382,6 +1468,11 @@ def refresh_queue(cfg: dict, P: dict, belt: list[dict], today: dt.date) -> list[
 
 def cmd_caption(cfg: dict, args) -> int:
     P = paths(cfg)
+    with locked(P):
+        return _caption(cfg, P, args)
+
+
+def _caption(cfg: dict, P: dict, args) -> int:
     queue = read_csv(P["queue"], QUEUE_COLUMNS)
     row = next((r for r in queue if r["slug"] == args.slug), None)
     if not row:
@@ -1394,9 +1485,14 @@ def cmd_caption(cfg: dict, args) -> int:
 
 
 def cmd_hold(cfg: dict, args) -> int:
+    P = paths(cfg)
+    with locked(P):
+        return _hold_locked(cfg, P, args)
+
+
+def _hold_locked(cfg: dict, P: dict, args) -> int:
     """Take a loop off the belt for now: clips and pack skip it, and a queued (not posted)
     queue row is dropped. The status it had is kept in held_from for `unhold`."""
-    P = paths(cfg)
     belt = read_csv(P["belt"], BELT_COLUMNS)
     row = next((r for r in belt if r["slug"] == args.slug), None)
     if not row:
@@ -1418,6 +1514,11 @@ def cmd_hold(cfg: dict, args) -> int:
 
 def cmd_unhold(cfg: dict, args) -> int:
     P = paths(cfg)
+    with locked(P):
+        return _unhold_locked(cfg, P, args)
+
+
+def _unhold_locked(cfg: dict, P: dict, args) -> int:
     belt = read_csv(P["belt"], BELT_COLUMNS)
     row = next((r for r in belt if r["slug"] == args.slug), None)
     if not row:
@@ -1434,6 +1535,11 @@ def cmd_unhold(cfg: dict, args) -> int:
 
 def cmd_posted(cfg: dict, args) -> int:
     P = paths(cfg)
+    with locked(P):
+        return _posted_locked(cfg, P, args)
+
+
+def _posted_locked(cfg: dict, P: dict, args) -> int:
     queue = read_csv(P["queue"], QUEUE_COLUMNS)
     row = next((r for r in queue if r["slug"] == args.slug), None)
     if not row:
@@ -1954,7 +2060,11 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--at-bar", type=int, help="start at this bar (1-based) instead of the loudest")
     g.add_argument("--at", type=float, help="start at this many seconds")
     s.add_argument("--audio", help="use this file instead of the preview (one set), e.g. a stem")
-    s.add_argument("--force", action="store_true", help="re-cut sets already on the belt")
+    s.add_argument("--force", action="store_true",
+                   help="re-cut sets still in loop (not ones with a clip, packed or posted)")
+    s.add_argument("--reset-progress", action="store_true",
+                   help="with --force: also rewind clip/packed rows to loop (drops the clip "
+                        "reference and the queued row); posted rows are never re-cut")
 
     s = sub.add_parser("clips", help="render 1080x1920 clips from inbox recordings")
     s.add_argument("slugs", nargs="*", help="only these slugs (default: every loop without a clip)")
