@@ -478,6 +478,97 @@ def loudnorm_filter(target: float, measured: dict | None) -> str | None:
             "linear=true")
 
 
+# ---------------------------------------------------------------- lifecycle
+#
+# The one place that says what a belt row may do. States are STATUS_ORDER plus HOLD:
+#
+#   (none) --cut--> loop --render--> clip --pack--> packed --post--> posted
+#   loop|clip|packed --hold--> hold --unhold--> held_from (loop if its clip is gone)
+#   loop --recut--> loop        clip|packed --reset_recut--> loop (clip blanked)
+#   clip|packed --render (re-render)--> same state
+#   posted is terminal: nothing moves or rewrites it (post again only re-dates the queue row)
+#
+# Every writer builds its change through transition(); a transition that is not legal
+# from the row's current state raises IllegalTransition, and the caller skips and says so.
+# transition() also refuses to touch any field outside the transition's own set.
+
+CUT_FIELDS = {"slug", "set_id", "name", "title", "bpm", "key", "bars", "start_s",
+              "duration_s", "source", "wav", "mp3", "clip", "clip_kind", "updated"}
+TRANSITIONS = {
+    # name: (states it is legal from, fields it may change)
+    "cut": ({None}, set(BELT_COLUMNS)),
+    "recut": ({"loop", HOLD}, CUT_FIELDS),
+    "reset_recut": ({"clip", "packed", HOLD}, CUT_FIELDS | {"status", "held_from"}),
+    "render": ({"loop", "clip", "packed"},
+               {"clip", "clip_kind", "palette", "title", "updated", "status"}),
+    "pack": ({"clip"}, {"status", "updated"}),
+    "hold": ({"loop", "clip", "packed", HOLD},
+             {"status", "hold_reason", "held_from", "updated"}),
+    "unhold": ({HOLD}, {"status", "hold_reason", "held_from", "updated"}),
+    "post": ({"clip", "packed", "posted"}, {"status", "updated"}),
+}
+
+
+class IllegalTransition(Exception):
+    pass
+
+
+def transition(row: dict | None, name: str, **kw) -> dict:
+    """Apply transition `name` to `row` (None for a new row) and return the row.
+    cut/recut/reset_recut take new=<fresh cut_loop row>; hold takes reason=; unhold takes
+    clip_exists=; render takes fields=<dict>."""
+    legal, allowed = TRANSITIONS[name]
+    state = None if row is None else row["status"]
+    held_from = "" if row is None else row["held_from"]
+    if state not in legal:
+        raise IllegalTransition(f"cannot {name} a row that is {state or 'new'}")
+    if state == HOLD and name in ("recut", "reset_recut"):
+        # A held row is as far along as it was when held.
+        if (held_from in ("clip", "packed")) != (name == "reset_recut"):
+            raise IllegalTransition(f"cannot {name} a row held from {held_from or 'loop'}")
+    before = dict(row) if row else {c: "" for c in BELT_COLUMNS}
+    new = dict(row) if row else {c: "" for c in BELT_COLUMNS}
+    if name in ("cut", "recut", "reset_recut"):
+        fresh = {k: v for k, v in kw["new"].items() if not k.startswith("_") and k != "status"}
+        new.update(fresh)
+        if name == "cut":
+            new["status"] = "loop"
+        elif name == "reset_recut":
+            if state == HOLD:
+                new["held_from"] = "loop"
+            else:
+                new["status"] = "loop"
+        else:
+            new["status"] = state            # a recut never moves the row
+        if row and row.get("title") and name != "cut":
+            new["title"] = row["title"]    # hand edits survive a re-cut
+    elif name == "render":
+        new.update(kw["fields"])
+        if state == "loop":
+            new["status"] = "clip"
+    elif name == "pack":
+        new.update(status="packed", updated=now())
+    elif name == "hold":
+        if state != HOLD:
+            new["held_from"] = state
+        new.update(status=HOLD, hold_reason=kw.get("reason", ""), updated=now())
+    elif name == "unhold":
+        back = held_from if held_from in STATUS_ORDER else "loop"
+        if back != "loop" and not kw.get("clip_exists"):
+            back = "loop"
+        new.update(status=back, hold_reason="", held_from="", updated=now())
+    elif name == "post":
+        if state != "posted":
+            new.update(status="posted", updated=now())
+    stray = {k for k in new if new[k] != before.get(k, "")} - allowed
+    if stray:
+        raise AssertionError(f"transition {name} touched {sorted(stray)}")
+    if row is None:
+        return new
+    row.update(new)
+    return row
+
+
 # ---------------------------------------------------------------- csv
 
 def read_csv(path: Path, columns: list[str]) -> list[dict]:
@@ -737,13 +828,18 @@ def cmd_loops(cfg: dict, args) -> int:
             print(f"fail {slug}: {e}", file=sys.stderr)
             failures += 1
             continue
-        if existing:
-            if existing.get("title"):
-                row["title"] = existing["title"]   # hand edits survive a re-cut
-            if existing["status"] == HOLD:
-                row.update(status=HOLD, held_from="loop")
         tp = row.pop("_tp", "")
-        upsert(belt, row)
+        try:
+            if existing:
+                transition(existing, "recut", new=row)
+                row = existing
+            else:
+                row = transition(None, "cut", new=row)
+                belt.append(row)
+        except IllegalTransition as e:
+            print(f"skip {slug}: {e} (use --force only on rows still in loop)", file=sys.stderr)
+            failures += 1
+            continue
         write_csv(P["belt"], BELT_COLUMNS, belt)
         print(f"loop  {slug}: {row['bpm']} BPM {row['key'] or '(no key)'}, "
               f"{bars} bars from {row['start_s']} s{tp} -> {row['wav']}")
@@ -1159,6 +1255,9 @@ def cmd_clips(cfg: dict, args) -> int:
             continue
         if r["status"] != "loop" and not args.force:
             continue
+        if r["status"] not in TRANSITIONS["render"][0]:
+            print(f"skip  {r['slug']}: {r['status']} rows are not re-rendered")
+            continue
         slug = r["slug"]
         rec = find_recording(P["inbox"], slug)
         text_png = P["work"] / f"{slug}-text.png"
@@ -1210,10 +1309,14 @@ def cmd_clips(cfg: dict, args) -> int:
             print(f"fail {slug}: {e}", file=sys.stderr)
             failures += 1
             continue
-        r.update(clip=str(out), clip_kind=f"{kind}:{renderer_name}", palette=pal["name"],
-                 title=job.title, updated=now())
-        if r["status"] == "loop":
-            r["status"] = "clip"
+        try:
+            transition(r, "render", fields=dict(
+                clip=str(out), clip_kind=f"{kind}:{renderer_name}", palette=pal["name"],
+                title=job.title, updated=now()))
+        except IllegalTransition as e:
+            print(f"skip {slug}: {e}", file=sys.stderr)
+            failures += 1
+            continue
         write_csv(P["belt"], BELT_COLUMNS, belt)
         print(f"clip  {slug} [{kind}, {renderer_name}, {pal['name']}] -> {out}")
     return 1 if failures else 0
@@ -1246,7 +1349,7 @@ def cmd_pack(cfg: dict, args) -> int:
         os.replace(tmp, zpath)
     for r in ready:
         if r["status"] == "clip":
-            r["status"], r["updated"] = "packed", now()
+            transition(r, "pack")
     write_csv(P["belt"], BELT_COLUMNS, belt)
     refresh_queue(cfg, P, belt, today)
     for item in getattr(args, "caption", None) or []:
@@ -1298,12 +1401,11 @@ def cmd_hold(cfg: dict, args) -> int:
     row = next((r for r in belt if r["slug"] == args.slug), None)
     if not row:
         sys.exit(f"{args.slug} is not on the belt")
-    if row["status"] == "posted":
-        sys.exit(f"{args.slug} is already posted; nothing to hold")
     reason = " ".join(args.reason).strip()
-    if row["status"] != HOLD:
-        row["held_from"] = row["status"]
-    row.update(status=HOLD, hold_reason=reason, updated=now())
+    try:
+        transition(row, "hold", reason=reason)
+    except IllegalTransition:
+        sys.exit(f"{args.slug} is already posted; nothing to hold")
     write_csv(P["belt"], BELT_COLUMNS, belt)
     queue = read_csv(P["queue"], QUEUE_COLUMNS)
     kept = [q for q in queue if not (q["slug"] == args.slug and q["status"] == "queued")]
@@ -1320,15 +1422,13 @@ def cmd_unhold(cfg: dict, args) -> int:
     row = next((r for r in belt if r["slug"] == args.slug), None)
     if not row:
         sys.exit(f"{args.slug} is not on the belt")
-    if row["status"] != HOLD:
+    try:
+        transition(row, "unhold", clip_exists=bool(row["clip"] and Path(row["clip"]).exists()))
+    except IllegalTransition:
         print(f"skip {args.slug}: not on hold ({row['status']})")
         return 0
-    back = row["held_from"] if row["held_from"] in STATUS_ORDER else "loop"
-    if back != "loop" and not (row["clip"] and Path(row["clip"]).exists()):
-        back = "loop"
-    row.update(status=back, hold_reason="", held_from="", updated=now())
     write_csv(P["belt"], BELT_COLUMNS, belt)
-    print(f"unhold {args.slug} -> {back}")
+    print(f"unhold {args.slug} -> {row['status']}")
     return 0
 
 
@@ -1338,12 +1438,15 @@ def cmd_posted(cfg: dict, args) -> int:
     row = next((r for r in queue if r["slug"] == args.slug), None)
     if not row:
         sys.exit(f"{args.slug} is not in {P['queue']}")
+    belt = read_csv(P["belt"], BELT_COLUMNS)
+    brow = next((r for r in belt if r["slug"] == args.slug), None)
+    if brow:
+        try:
+            transition(brow, "post")
+        except IllegalTransition as e:
+            sys.exit(f"{args.slug}: {e}; belt and queue left as they were")
     row["status"], row["posted_at"] = "posted", args.date or dt.date.today().isoformat()
     write_csv(P["queue"], QUEUE_COLUMNS, queue)
-    belt = read_csv(P["belt"], BELT_COLUMNS)
-    for r in belt:
-        if r["slug"] == args.slug:
-            r["status"], r["updated"] = "posted", now()
     write_csv(P["belt"], BELT_COLUMNS, belt)
     print(f"posted {args.slug} on {row['posted_at']}")
     return 0
