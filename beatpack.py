@@ -1638,6 +1638,93 @@ def cmd_cover(cfg: dict, args) -> int:
     return 0
 
 
+def doctor_findings(P: dict) -> dict[str, list[str]]:
+    """Belt/queue consistency, read-only: files are opened for reading and stat'd, never
+    written, and no lock file is created. Returns {problem: [slug or path, ...]}."""
+    belt = read_csv(P["belt"], BELT_COLUMNS)
+    queue = read_csv(P["queue"], QUEUE_COLUMNS)
+    out: dict[str, list[str]] = {}
+
+    def add(kind: str, what: str) -> None:
+        out.setdefault(kind, []).append(what)
+
+    def file_problem(path: str) -> str | None:
+        f = Path(path)
+        if not f.exists():
+            return "missing"
+        return "empty" if f.stat().st_size == 0 else None
+
+    seen: set[str] = set()
+    for r in belt:
+        if r["slug"] in seen:
+            add("belt duplicate slug", r["slug"])
+        seen.add(r["slug"])
+    belt_by = {r["slug"]: r for r in belt}
+    q_by: dict[str, list[dict]] = {}
+    for q_ in queue:
+        q_by.setdefault(q_["slug"], []).append(q_)
+    for slug, rows in q_by.items():
+        if len(rows) > 1:
+            add("queue duplicate slug", slug)
+    for r in belt:
+        st, slug = r["status"], r["slug"]
+        if st not in STATUS_ORDER and st != HOLD:
+            add("belt unknown status", slug)
+        if st == HOLD and r["held_from"] not in STATUS_ORDER[:3] + [""]:
+            add("belt held_from invalid", slug)
+        if st in ("loop",) and r["clip"]:
+            add("belt loop row has a clip", slug)
+        if st in ("clip", "packed", "posted"):
+            if not r["clip"]:
+                add("belt clip row without a clip path", slug)
+            elif (bad := file_problem(r["clip"])):
+                add(f"belt clip file {bad}", slug)
+        qs = q_by.get(slug, [])
+        qstat = qs[0]["status"] if qs else None
+        if st == "posted" and qstat != "posted":
+            add("belt posted, queue not posted", slug)
+        if st == "packed" and not qs:
+            add("belt packed, not in queue", slug)
+        if st in ("loop", HOLD, "clip") and qstat == "queued":
+            add(f"queued row for a {st} belt row", slug)
+        if st != "posted" and qstat == "posted":
+            add("queue posted, belt not posted", slug)
+    for slug, rows in q_by.items():
+        b = belt_by.get(slug)
+        if b is None:
+            add("queue row not on the belt", slug)
+            continue
+        q_ = rows[0]
+        if q_["clip"] and (bad := file_problem(q_["clip"])):
+            add(f"queue clip file {bad}", slug)
+        if q_["clip"] and b["clip"] and q_["clip"] != b["clip"] and q_["status"] == "queued":
+            add("queue clip differs from belt clip", slug)
+    clips = P["clips"]
+    if clips.is_dir():
+        for f in sorted(clips.iterdir()):
+            if f.name.endswith((".part.mp4", ".ec-raw.mp4", ".remux.mp4")):
+                add("leftover partial render", f.name)
+    return out
+
+
+def cmd_doctor(cfg: dict, args) -> int:
+    """Read-only consistency check of belt.csv and queue.csv and the clip files they name."""
+    P = paths(cfg)
+    found = doctor_findings(P)
+    belt_n = len(read_csv(P["belt"], BELT_COLUMNS))
+    queue_n = len(read_csv(P["queue"], QUEUE_COLUMNS))
+    print(f"doctor belt {belt_n} rows, queue {queue_n} rows")
+    if not found:
+        print("ok: belt, queue and clip files agree")
+        return 0
+    for kind, items in sorted(found.items()):
+        print(f"{len(items):>4}  {kind}")
+        if not args.counts:
+            for it in items:
+                print(f"        {it}")
+    return 1
+
+
 # ---------------------------------------------------------------- status
 
 def cmd_status(cfg: dict, args) -> int:
@@ -2151,6 +2238,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("status", help="summarize belt.csv and queue.csv")
 
+    s = sub.add_parser("doctor", help="read-only check that belt, queue and clip files agree")
+    s.add_argument("--counts", action="store_true", help="counts only, no slugs")
+
     s = sub.add_parser("serve", help="open the belt as a local app on 127.0.0.1")
     s.add_argument("--port", type=int, default=8787)
     s.add_argument("--no-open", action="store_true", help="do not open the browser")
@@ -2163,7 +2253,7 @@ def main(argv: list[str] | None = None) -> int:
     DRY_RUN = args.dry_run
     cfg = load_config(args.config)
     handler = {"loops": cmd_loops, "clips": cmd_clips, "pack": cmd_pack,
-               "posted": cmd_posted, "caption": cmd_caption, "hold": cmd_hold, "unhold": cmd_unhold, "cover": cmd_cover, "status": cmd_status,
+               "posted": cmd_posted, "caption": cmd_caption, "hold": cmd_hold, "unhold": cmd_unhold, "cover": cmd_cover, "status": cmd_status, "doctor": cmd_doctor,
                "serve": cmd_serve}[args.cmd]
     return handler(cfg, args)
 
